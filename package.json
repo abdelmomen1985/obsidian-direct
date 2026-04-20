@@ -4,8 +4,10 @@
   "description": "Web editor for Obsidian vaults over SSH",
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"bun run --watch src/server.ts\" \"bun build web/main.ts --outdir dist/web --watch --target browser\"",
-    "build": "bun build web/main.ts --outdir dist/web --minify --target browser",
+    "css:build": "bunx tailwindcss -i web/input.css -o dist/web/styles.css --minify",
+    "css:watch": "mkdir -p dist/web && bunx tailwindcss -i web/input.css -o dist/web/styles.css --watch",
+    "build": "mkdir -p dist/web && cp web/index.html dist/web/index.html && bun build web/main.ts --outdir dist/web --minify --target browser && bun run css:build",
+    "dev": "concurrently \"bun run --watch src/server.ts\" \"bun build web/main.ts --outdir dist/web --watch --target browser\" \"bun run css:watch\"",
     "start": "bun run src/server.ts",
     "hash": "bun run scripts/hash-password.ts",
     "test": "bun test"
@@ -25,6 +27,7 @@
   "devDependencies": {
     "@types/dompurify": "^3.0.5",
     "bun-types": "latest",
-    "concurrently": "^9.1.2"
+    "concurrently": "^9.1.2",
+    "tailwindcss": "3"
   }
 }
