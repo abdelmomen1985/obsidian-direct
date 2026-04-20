@@ -12,7 +12,17 @@ if (!password || password.length < 8) {
   process.exit(1);
 }
 
-const hash = await Bun.password.hash(password, { algorithm: "argon2id" });
+let hash: string;
+try {
+  hash = await Bun.password.hash(password, { algorithm: "argon2id" });
+} catch (err: any) {
+  if (err?.code === "PASSWORD_UNSUPPORTED_ALGORITHM") {
+    console.warn("Warning: argon2id not supported on this Bun version; using bcrypt instead.");
+    hash = await Bun.password.hash(password, { algorithm: "bcrypt" });
+  } else {
+    throw err;
+  }
+}
 rl.close();
 
 console.log("\nAdd this to your .env file:");

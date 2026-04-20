@@ -12,7 +12,10 @@ export function checkRateLimit(ip: string): boolean {
   const entry = loginAttempts.get(ip);
   if (!entry) return true;
   if (entry.lockedUntil > now) return false;
-  if (entry.count >= MAX_ATTEMPTS) return false;
+  // Lockout window expired — reset so the IP can try again
+  if (entry.count >= MAX_ATTEMPTS) {
+    loginAttempts.delete(ip);
+  }
   return true;
 }
 
