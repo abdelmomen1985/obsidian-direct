@@ -1,10 +1,12 @@
-import { resolve, join } from "path";
+import { resolve, join, dirname } from "path";
 import { existsSync, readFileSync } from "fs";
 
-// Explicitly load .env so the server works when invoked outside `bun run`
-// (e.g. screen sessions, bash -c, systemd). Bun auto-loads only from cwd.
-const envPath = join(import.meta.dir, "..", ".env");
-if (existsSync(envPath)) {
+// Explicitly load .env with our own parser.
+// Bun's built-in .env loader chokes on $ characters in values (e.g. bcrypt hashes).
+const thisDir = dirname(new URL(import.meta.url).pathname);
+const candidates = [".env", join(thisDir, ".env"), join(thisDir, "..", ".env")];
+const envPath = candidates.find((p) => existsSync(p));
+if (envPath) {
   for (const line of readFileSync(envPath, "utf8").split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
@@ -18,7 +20,8 @@ if (existsSync(envPath)) {
     ) {
       val = val.slice(1, -1);
     }
-    if (key && !(key in process.env)) {
+    // Always overwrite — Bun's auto-loader may set empty values for $-prefixed strings
+    if (key) {
       process.env[key] = val;
     }
   }
