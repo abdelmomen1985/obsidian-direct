@@ -1,0 +1,15 @@
+[Unit]
+Description=Obsidian Direct web editor
+After=network.target
+
+[Service]
+Type=simple
+User=youruser
+WorkingDirectory=/home/youruser/obsidian-direct
+EnvironmentFile=/home/youruser/obsidian-direct/.env
+ExecStart=/usr/local/bin/bun run src/server.ts
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

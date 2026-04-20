@@ -1,0 +1,6 @@
+# Replace notes.example.com with your actual domain.
+# Caddy handles HTTPS automatically via Let's Encrypt.
+
+notes.example.com {
+    reverse_proxy localhost:3000
+}
