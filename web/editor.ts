@@ -68,7 +68,7 @@ function baseExtensions(onChange: (doc: string) => void, onSave: () => void): Ex
     EditorView.theme({
       "&": { height: "100%", fontSize: "14px" },
       ".cm-scroller": { overflow: "auto", fontFamily: "'JetBrains Mono', 'Fira Code', monospace" },
-      ".cm-wikilink": { color: "#7c9bff", fontWeight: "bold" },
+      ".cm-wikilink": { color: "#a78bfa", fontWeight: "bold" },
     }),
   ];
 }
