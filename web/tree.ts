@@ -1,5 +1,8 @@
 import { TreeNode, getTree } from "./api.ts";
 
+let lastTreeJson = "";
+let refreshTimer: ReturnType<typeof setInterval> | null = null;
+
 export function renderTree(
   container: HTMLElement,
   onSelect: (path: string) => void,
@@ -11,10 +14,47 @@ export function renderTree(
     .then((nodes) => {
       container.innerHTML = "";
       container.appendChild(buildTreeEl(nodes, onSelect, activePathRef));
+      lastTreeJson = JSON.stringify(nodes);
     })
     .catch(() => {
       container.innerHTML = '<div class="tree-error">Failed to load files</div>';
     });
+}
+
+function getOpenDirPaths(container: HTMLElement): Set<string> {
+  const open = new Set<string>();
+  container.querySelectorAll<HTMLDetailsElement>("details[open]").forEach((el) => {
+    if (el.dataset["path"]) open.add(el.dataset["path"]);
+  });
+  return open;
+}
+
+function restoreOpenDirPaths(container: HTMLElement, paths: Set<string>): void {
+  container.querySelectorAll<HTMLDetailsElement>("details[data-path]").forEach((el) => {
+    if (el.dataset["path"] && paths.has(el.dataset["path"])) el.open = true;
+  });
+}
+
+export function startTreeAutoRefresh(
+  container: HTMLElement,
+  onSelect: (path: string) => void,
+  activePathRef: { current: string },
+  intervalMs = 5000
+): void {
+  if (refreshTimer !== null) clearInterval(refreshTimer);
+  refreshTimer = setInterval(async () => {
+    if (document.visibilityState === "hidden") return;
+    let nodes: TreeNode[];
+    try { nodes = await getTree(); } catch { return; }
+    const newJson = JSON.stringify(nodes);
+    if (newJson === lastTreeJson) return;
+    lastTreeJson = newJson;
+    const openPaths = getOpenDirPaths(container);
+    container.innerHTML = "";
+    container.appendChild(buildTreeEl(nodes, onSelect, activePathRef));
+    restoreOpenDirPaths(container, openPaths);
+    setActiveInTree(activePathRef.current);
+  }, intervalMs);
 }
 
 function buildTreeEl(
@@ -32,6 +72,7 @@ function buildTreeEl(
     if (node.type === "directory") {
       const details = document.createElement("details");
       details.open = false;
+      details.dataset["path"] = node.path;
       const summary = document.createElement("summary");
       summary.className = "tree-dir";
       summary.textContent = node.name;

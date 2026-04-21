@@ -17,16 +17,36 @@ function processWikilinks(html: string): string {
   });
 }
 
-export function renderMarkdown(markdown: string): string {
-  // Strip YAML frontmatter
+const ARABIC_RE = /[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]/g;
+const MEANINGFUL_RE = /\S/g;
+
+function detectRtl(frontMatterRaw: string, body: string): boolean {
+  if (/\blang\s*:\s*ar\b/i.test(frontMatterRaw) ||
+      /\bdirection\s*:\s*rtl\b/i.test(frontMatterRaw)) return true;
+  const arabic = (body.match(ARABIC_RE) ?? []).length;
+  if (arabic === 0) return false;
+  const meaningful = (body.match(MEANINGFUL_RE) ?? []).length;
+  return meaningful > 0 && arabic / meaningful > 0.15;
+}
+
+export interface MarkdownResult {
+  html: string;
+  isRtl: boolean;
+}
+
+export function renderMarkdown(markdown: string): MarkdownResult {
+  const fmMatch = markdown.match(/^---[\s\S]*?---\n?/);
+  const frontMatterRaw = fmMatch ? fmMatch[0] : "";
   const stripped = markdown.replace(/^---[\s\S]*?---\n?/, "");
+  const isRtl = detectRtl(frontMatterRaw, stripped);
   const raw = marked.parse(stripped) as string;
   const withLinks = processWikilinks(raw);
-  return DOMPurify.sanitize(withLinks, {
+  const html = DOMPurify.sanitize(withLinks, {
     ADD_ATTR: ["data-wikilink"],
     ADD_TAGS: ["a"],
     ALLOWED_ATTR: ["href", "class", "data-wikilink", "src", "alt", "title", "target", "rel"],
   });
+  return { html, isRtl };
 }
 
 export function attachWikilinkHandlers(
