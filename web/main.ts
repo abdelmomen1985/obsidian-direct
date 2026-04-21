@@ -1,6 +1,6 @@
 import { getFile, saveFile, logout } from "./api.ts";
 import { renderLogin } from "./login.ts";
-import { renderTree, setActiveInTree } from "./tree.ts";
+import { renderTree, setActiveInTree, startTreeAutoRefresh } from "./tree.ts";
 import { createEditor, setEditorContent, getEditorContent } from "./editor.ts";
 import { renderMarkdown, attachWikilinkHandlers } from "./preview.ts";
 import { createSearchPanel } from "./search.ts";
@@ -89,6 +89,7 @@ function showApp(): void {
 
   // ── File tree ────────────────────────────────────────────────────────────
   renderTree(treeEl, openFile, activePathRef);
+  startTreeAutoRefresh(treeEl, openFile, activePathRef, 5000);
 
   // ── Search panel ─────────────────────────────────────────────────────────
   const { el: searchEl, open: openSearch, close: closeSearch } = createSearchPanel(
@@ -129,7 +130,10 @@ function showApp(): void {
   function updatePreview(doc: string): void {
     if (previewDebounce) clearTimeout(previewDebounce);
     previewDebounce = setTimeout(() => {
-      previewEl.innerHTML = renderMarkdown(doc);
+      const { html, isRtl } = renderMarkdown(doc);
+      previewEl.innerHTML = html;
+      previewEl.setAttribute("dir", isRtl ? "rtl" : "ltr");
+      editorPaneEl.setAttribute("dir", isRtl ? "rtl" : "ltr");
     }, 150);
   }
 

@@ -201,4 +201,23 @@
   .markdown-body th { @apply bg-ob-surface; }
   .markdown-body hr { @apply border-none border-t border-ob-border; margin: 1.5em 0; }
   .markdown-body img { @apply max-w-full rounded; }
+
+  /* RTL (Arabic) overrides */
+  .markdown-body[dir="rtl"] {
+    text-align: right;
+  }
+  .markdown-body[dir="rtl"] blockquote {
+    border-left: none;
+    border-right: 3px solid var(--accent);
+    padding-left: 0;
+    padding-right: 14px;
+  }
+  .markdown-body[dir="rtl"] ul,
+  .markdown-body[dir="rtl"] ol {
+    padding-left: 0;
+    padding-right: 1.5em;
+  }
+  .editor-pane[dir="rtl"] .cm-content {
+    text-align: right;
+  }
 }
