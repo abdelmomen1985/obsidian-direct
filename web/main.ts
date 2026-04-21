@@ -4,6 +4,7 @@ import { renderTree, setActiveInTree, startTreeAutoRefresh } from "./tree.ts";
 import { createEditor, setEditorContent, getEditorContent } from "./editor.ts";
 import { renderMarkdown, attachWikilinkHandlers } from "./preview.ts";
 import { createSearchPanel } from "./search.ts";
+import { themeManager } from "./themes.ts";
 import { EditorView } from "@codemirror/view";
 
 const app = document.getElementById("app")!;
@@ -43,6 +44,11 @@ function showApp(): void {
         </div>
         <div class="topbar-right">
           <span id="save-status" class="save-status"></span>
+          <button id="theme-btn" class="icon-btn" title="Switch theme">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+            </svg>
+          </button>
           <button id="logout-btn" class="icon-btn">Logout</button>
         </div>
       </header>
@@ -104,6 +110,23 @@ function showApp(): void {
       e.preventDefault();
       openSearch();
     }
+  });
+
+  // ── Theme switcher ────────────────────────────────────────────────────────
+  const themeBtn = document.getElementById("theme-btn")!;
+  const updateThemeTitle = () => {
+    const all = themeManager.getThemes();
+    const idx = all.findIndex((t) => t.name === themeManager.getCurrent());
+    const next = all[(idx + 1) % all.length]!;
+    themeBtn.title = `Theme: ${themeManager.getThemes().find((t) => t.name === themeManager.getCurrent())?.label ?? ""} → ${next.label}`;
+  };
+  updateThemeTitle();
+  themeBtn.addEventListener("click", () => {
+    const all = themeManager.getThemes();
+    const idx = all.findIndex((t) => t.name === themeManager.getCurrent());
+    const next = all[(idx + 1) % all.length]!;
+    themeManager.apply(next.name);
+    updateThemeTitle();
   });
 
   // ── Logout ────────────────────────────────────────────────────────────────

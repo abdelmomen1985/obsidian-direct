@@ -7,22 +7,22 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --bg:        #1e1e1e;
-    --bg2:       #161616;
-    --bg3:       #111111;
-    --surface:   #2a2a2a;
-    --border:    #383838;
-    --text:      #dcddde;
-    --text-muted:#888888;
-    --accent:    #a78bfa;
-    --accent2:   #7c3aed;
-    --green:     #6eb26e;
-    --red:       #e06c75;
-    --yellow:    #e5c07b;
-    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
-    --sidebar-w: 240px;
-    --topbar-h:  44px;
+    --ob-bg:      oklch(0.145 0 0);
+    --ob-bg2:     oklch(0.205 0 0);
+    --ob-bg3:     oklch(0.10 0 0);
+    --ob-surface: oklch(0.269 0 0);
+    --ob-border:  oklch(0.30 0 0);
+    --ob-text:    oklch(0.985 0 0);
+    --ob-muted:   oklch(0.708 0 0);
+    --ob-accent:  oklch(0.65 0.18 264);
+    --ob-accent2: oklch(0.55 0.18 264);
+    --ob-green:   oklch(0.627 0.194 153);
+    --ob-red:     oklch(0.637 0.237 25);
+    --ob-yellow:  oklch(0.769 0.147 84);
+    --font-sans:  "Geist", ui-sans-serif, system-ui, sans-serif;
+    --font-mono:  "Geist Mono", "JetBrains Mono", "Fira Code", monospace;
+    --sidebar-w:  240px;
+    --topbar-h:   44px;
   }
 
   html, body {
@@ -31,6 +31,8 @@
     @apply bg-ob-bg3 text-ob-text font-sans;
     font-size: 14px;
   }
+
+  .cm-wikilink { color: var(--ob-accent) !important; font-weight: bold; }
 
   #app { @apply h-screen flex flex-col; }
 
@@ -157,7 +159,7 @@
   .search-result-path { @apply text-ob-accent; font-size: 12px; margin-bottom: 3px; }
   .search-result-snippet { @apply text-ob-text whitespace-pre-wrap break-all; font-size: 13px; }
   .search-result-snippet mark {
-    background: rgba(167,139,250,0.25);
+    background: color-mix(in oklch, var(--ob-accent) 25%, transparent);
     @apply text-ob-accent rounded-sm;
   }
   .search-line { @apply text-ob-muted; font-size: 11px; margin-left: 6px; }
@@ -187,7 +189,7 @@
   .markdown-body pre code { @apply bg-transparent p-0; }
   .markdown-body blockquote {
     @apply text-ob-muted;
-    border-left: 3px solid var(--accent);
+    border-left: 3px solid var(--ob-accent);
     padding-left: 14px;
     margin: 1em 0;
   }
@@ -208,7 +210,7 @@
   }
   .markdown-body[dir="rtl"] blockquote {
     border-left: none;
-    border-right: 3px solid var(--accent);
+    border-right: 3px solid var(--ob-accent);
     padding-left: 0;
     padding-right: 14px;
   }

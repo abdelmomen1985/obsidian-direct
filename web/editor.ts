@@ -67,8 +67,7 @@ function baseExtensions(onChange: (doc: string) => void, onSave: () => void): Ex
     }),
     EditorView.theme({
       "&": { height: "100%", fontSize: "14px" },
-      ".cm-scroller": { overflow: "auto", fontFamily: "'JetBrains Mono', 'Fira Code', monospace" },
-      ".cm-wikilink": { color: "#a78bfa", fontWeight: "bold" },
+      ".cm-scroller": { overflow: "auto", fontFamily: "'Geist Mono', 'JetBrains Mono', 'Fira Code', monospace" },
     }),
   ];
 }
