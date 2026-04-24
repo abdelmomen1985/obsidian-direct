@@ -167,6 +167,61 @@
 
   /* .hidden is provided by Tailwind's built-in utility (display: none) */
 
+  /* Context menu */
+  .context-menu {
+    position: fixed;
+    z-index: 500;
+    @apply bg-ob-bg2 border border-ob-border rounded-lg overflow-hidden;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    min-width: 150px;
+  }
+  .context-menu-item {
+    @apply block w-full text-left text-ob-text transition-colors duration-100;
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+  .context-menu-item:hover { @apply bg-ob-surface; }
+  .context-menu-item--danger { @apply text-ob-red; }
+  .context-menu-item--danger:hover { background: color-mix(in oklch, var(--ob-red) 15%, transparent); }
+
+  /* Drag and drop */
+  .tree-file.dragging { opacity: 0.4; }
+  details.drag-over > summary { @apply text-ob-accent; background: color-mix(in oklch, var(--ob-accent) 12%, transparent); border-radius: 4px; }
+
+  /* Command palette */
+  #cmd-overlay { @apply fixed inset-0 z-[300]; display: none; }
+  #cmd-overlay.active { display: block; background: rgba(0,0,0,0.45); }
+  .cmd-backdrop {
+    @apply fixed inset-0 z-[300];
+    background: rgba(0,0,0,0.45);
+  }
+  .cmd-panel {
+    @apply fixed left-1/2 -translate-x-1/2 bg-ob-bg2 border border-ob-border rounded-xl z-[400] overflow-hidden;
+    top: 60px;
+    width: 600px;
+    max-width: 95vw;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .cmd-panel.hidden { display: none; }
+  .cmd-header { @apply flex items-center border-b border-ob-border; }
+  #cmd-input, #move-input {
+    @apply flex-1 bg-transparent border-0 text-ob-text outline-none;
+    padding: 12px 16px;
+    font-size: 15px;
+    font-family: inherit;
+  }
+  .cmd-list { max-height: 360px; @apply overflow-y-auto; }
+  .cmd-item {
+    @apply flex items-center justify-between w-full text-left border-b border-ob-border transition-colors duration-100;
+    padding: 10px 16px;
+    gap: 12px;
+  }
+  .cmd-item:last-child { @apply border-b-0; }
+  .cmd-item:hover, .cmd-item.selected { @apply bg-ob-surface; }
+  .cmd-item-label { @apply text-ob-text; font-size: 13px; }
+  .cmd-item-desc { @apply text-ob-muted; font-size: 12px; }
+  .cmd-empty { @apply p-4 text-center text-ob-muted; font-size: 13px; }
+
   /* Markdown preview */
   .markdown-body { @apply leading-relaxed text-ob-text; }
   .markdown-body h1,
@@ -193,8 +248,34 @@
     padding-left: 14px;
     margin: 1em 0;
   }
-  .markdown-body ul, .markdown-body ol { padding-left: 1.5em; margin: 0.8em 0; }
+  .markdown-body ul { padding-left: 1.5em; margin: 0.8em 0; list-style-type: disc; }
+  .markdown-body ol { padding-left: 1.5em; margin: 0.8em 0; list-style-type: decimal; }
   .markdown-body li { margin: 0.3em 0; }
+  .markdown-body ul.contains-task-list { list-style-type: none; padding-left: 0.25em; }
+  .markdown-body .task-list-item { display: flex; align-items: baseline; gap: 0.5em; padding-left: 0; }
+  .markdown-body .task-list-item input[type="checkbox"] {
+    appearance: none; -webkit-appearance: none;
+    width: 14px; height: 14px; flex-shrink: 0;
+    border: 1.5px solid var(--ob-border);
+    border-radius: 3px;
+    background: var(--ob-bg2);
+    cursor: default;
+    position: relative;
+    top: 2px;
+  }
+  .markdown-body .task-list-item input[type="checkbox"]:checked {
+    background: var(--ob-accent);
+    border-color: var(--ob-accent);
+  }
+  .markdown-body .task-list-item input[type="checkbox"]:checked::after {
+    content: "";
+    position: absolute;
+    left: 3px; top: 0px;
+    width: 5px; height: 9px;
+    border: 2px solid var(--ob-bg);
+    border-top: none; border-left: none;
+    transform: rotate(45deg);
+  }
   .markdown-body a { @apply text-ob-accent no-underline; }
   .markdown-body a:hover { @apply underline; }
   .markdown-body a.wikilink { @apply text-ob-accent; }
@@ -219,6 +300,7 @@
     padding-left: 0;
     padding-right: 1.5em;
   }
+  .markdown-body[dir="rtl"] ul.contains-task-list { padding-left: 0; padding-right: 0.25em; }
   .editor-pane[dir="rtl"] .cm-content {
     text-align: right;
   }

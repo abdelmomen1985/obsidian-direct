@@ -1,8 +1,8 @@
-import { readFile, writeFile, rename, mkdir } from "fs/promises";
-import { dirname } from "path";
+import { readFile, writeFile, rename, mkdir, unlink } from "fs/promises";
+import { dirname, basename, join } from "path";
 import { config } from "../config.ts";
-import { safeResolveStat } from "../paths.ts";
-import { addToIndex } from "../wikilink-index.ts";
+import { safeResolveStat, safeResolve } from "../paths.ts";
+import { addToIndex, removeFromIndex } from "../wikilink-index.ts";
 import { PathError } from "../paths.ts";
 
 export async function handleGetFile(req: Request): Promise<Response> {
@@ -31,6 +31,86 @@ export async function handleGetFile(req: Request): Promise<Response> {
     const isNotFound = (err as NodeJS.ErrnoException).code === "ENOENT";
     return new Response(JSON.stringify({ error: isNotFound ? "File not found" : "Read failed" }), {
       status: isNotFound ? 404 : 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+}
+
+export async function handleDeleteFile(req: Request): Promise<Response> {
+  const url = new URL(req.url);
+  const relPath = url.searchParams.get("path");
+  if (!relPath) {
+    return new Response(JSON.stringify({ error: "Missing path" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  try {
+    const abs = await safeResolveStat(config.vaultPath, relPath, "write");
+    await unlink(abs);
+    removeFromIndex(relPath);
+    return new Response(JSON.stringify({ ok: true }), {
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (err) {
+    if (err instanceof PathError) {
+      return new Response(JSON.stringify({ error: err.message }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    return new Response(JSON.stringify({ error: "Delete failed" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+}
+
+export async function handleMoveFile(req: Request): Promise<Response> {
+  let body: { path?: string; destDir?: string };
+  try {
+    body = await req.json() as { path?: string; destDir?: string };
+  } catch {
+    return new Response(JSON.stringify({ error: "Invalid JSON" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const { path: relPath, destDir } = body;
+  if (!relPath || typeof destDir !== "string") {
+    return new Response(JSON.stringify({ error: "Missing path or destDir" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  try {
+    const srcAbs = await safeResolveStat(config.vaultPath, relPath, "write");
+    const fileName = basename(srcAbs);
+    const destRelPath = destDir ? `${destDir}/${fileName}` : fileName;
+    const destAbs = safeResolve(config.vaultPath, destRelPath);
+
+    await mkdir(dirname(destAbs), { recursive: true });
+    await rename(srcAbs, destAbs);
+
+    removeFromIndex(relPath);
+    addToIndex(destRelPath);
+
+    return new Response(JSON.stringify({ ok: true, newPath: destRelPath }), {
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (err) {
+    if (err instanceof PathError) {
+      return new Response(JSON.stringify({ error: err.message }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    console.error("move error:", err);
+    return new Response(JSON.stringify({ error: "Move failed" }), {
+      status: 500,
       headers: { "Content-Type": "application/json" },
     });
   }

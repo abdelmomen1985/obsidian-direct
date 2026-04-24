@@ -1,9 +1,10 @@
 import { getFile, saveFile, logout } from "./api.ts";
 import { renderLogin } from "./login.ts";
-import { renderTree, setActiveInTree, startTreeAutoRefresh } from "./tree.ts";
+import { renderTree, setActiveInTree, startTreeAutoRefresh, setTreeCallbacks } from "./tree.ts";
 import { createEditor, setEditorContent, getEditorContent } from "./editor.ts";
 import { renderMarkdown, attachWikilinkHandlers } from "./preview.ts";
 import { createSearchPanel } from "./search.ts";
+import { createCommandPalette, openMoveFilePalette } from "./command-palette.ts";
 import { themeManager } from "./themes.ts";
 import { EditorView } from "@codemirror/view";
 
@@ -38,6 +39,12 @@ function showApp(): void {
             </svg>
             Search
           </button>
+          <button id="cmd-btn" title="Command Palette (Ctrl+P)" class="icon-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="4 6 10 12 4 18"/><line x1="12" y1="18" x2="20" y2="18"/>
+            </svg>
+            Commands
+          </button>
         </div>
         <div class="topbar-center">
           <span id="current-title" class="current-title">—</span>
@@ -67,6 +74,7 @@ function showApp(): void {
       </div>
     </div>
     <div id="search-overlay"></div>
+    <div id="cmd-overlay-container"></div>
   `;
 
   const treeEl = document.getElementById("file-tree")!;
@@ -75,6 +83,7 @@ function showApp(): void {
   const saveStatusEl = document.getElementById("save-status")!;
   const titleEl = document.getElementById("current-title")!;
   const searchOverlay = document.getElementById("search-overlay")!;
+  const cmdOverlayEl = document.getElementById("cmd-overlay-container")!;
 
   // ── Editor ──────────────────────────────────────────────────────────────
   editorView = createEditor(
@@ -94,6 +103,27 @@ function showApp(): void {
   attachWikilinkHandlers(previewEl, openFile);
 
   // ── File tree ────────────────────────────────────────────────────────────
+  setTreeCallbacks({
+    onDelete: (path) => {
+      if (currentPath === path) {
+        currentPath = null;
+        activePathRef.current = "";
+        titleEl.textContent = "—";
+        if (editorView) setEditorContent(editorView, "");
+        previewEl.innerHTML = "";
+        setStatus("idle");
+      }
+      renderTree(treeEl, openFile, activePathRef);
+    },
+    onMove: (oldPath, newPath) => {
+      if (currentPath === oldPath) {
+        currentPath = newPath;
+        activePathRef.current = newPath;
+        titleEl.textContent = newPath.split("/").pop()?.replace(/\.md$/, "") ?? newPath;
+      }
+      renderTree(treeEl, openFile, activePathRef);
+    },
+  });
   renderTree(treeEl, openFile, activePathRef);
   startTreeAutoRefresh(treeEl, openFile, activePathRef, 5000);
 
@@ -105,10 +135,49 @@ function showApp(): void {
 
   document.getElementById("search-btn")!.addEventListener("click", openSearch);
 
+  // ── Command palette ───────────────────────────────────────────────────────
+  const cmdPalette = createCommandPalette();
+  cmdOverlayEl.appendChild(cmdPalette.el);
+
+  function buildCommands() {
+    return [
+      {
+        id: "move-file",
+        label: "Move file to directory",
+        description: currentPath ? `Current: ${currentPath}` : "No file open",
+        action: () => {
+          if (!currentPath) { alert("No file is currently open."); return; }
+          openMoveFilePalette(currentPath, (oldPath, newPath) => {
+            if (currentPath === oldPath) {
+              currentPath = newPath;
+              activePathRef.current = newPath;
+              titleEl.textContent = newPath.split("/").pop()?.replace(/\.md$/, "") ?? newPath;
+            }
+            renderTree(treeEl, openFile, activePathRef);
+          });
+        },
+      },
+      {
+        id: "search",
+        label: "Search files",
+        description: "Ctrl+K",
+        action: () => openSearch(),
+      },
+    ];
+  }
+
+  const openCmdPalette = () => cmdPalette.open(buildCommands());
+
+  document.getElementById("cmd-btn")!.addEventListener("click", openCmdPalette);
+
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === "k") {
       e.preventDefault();
       openSearch();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === "p") {
+      e.preventDefault();
+      openCmdPalette();
     }
   });
 

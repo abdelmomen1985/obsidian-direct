@@ -75,3 +75,27 @@ export async function resolveWikilink(name: string): Promise<ResolveResult> {
   if (!res.ok) throw new Error("Resolve failed");
   return res.json() as Promise<ResolveResult>;
 }
+
+export async function deleteFile(path: string): Promise<void> {
+  const res = await apiFetch(`/api/file?path=${encodeURIComponent(path)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const data = await res.json() as { error?: string };
+    throw new Error(data.error ?? "Delete failed");
+  }
+}
+
+export async function moveFile(path: string, destDir: string): Promise<string> {
+  const res = await apiFetch("/api/file/move", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path, destDir }),
+  });
+  if (!res.ok) {
+    const data = await res.json() as { error?: string };
+    throw new Error(data.error ?? "Move failed");
+  }
+  const data = await res.json() as { newPath: string };
+  return data.newPath;
+}

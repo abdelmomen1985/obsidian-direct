@@ -1,7 +1,19 @@
-import { TreeNode, getTree } from "./api.ts";
+import { TreeNode, getTree, deleteFile, moveFile } from "./api.ts";
 
 let lastTreeJson = "";
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
+
+// Callbacks set by main.ts so tree can notify the app of file operations
+let onDeleteCallback: ((path: string) => void) | null = null;
+let onMoveCallback: ((oldPath: string, newPath: string) => void) | null = null;
+
+export function setTreeCallbacks(callbacks: {
+  onDelete?: (path: string) => void;
+  onMove?: (oldPath: string, newPath: string) => void;
+}): void {
+  if (callbacks.onDelete) onDeleteCallback = callbacks.onDelete;
+  if (callbacks.onMove) onMoveCallback = callbacks.onMove;
+}
 
 export function renderTree(
   container: HTMLElement,
@@ -57,6 +69,59 @@ export function startTreeAutoRefresh(
   }, intervalMs);
 }
 
+// ── Context menu ─────────────────────────────────────────────────────────────
+
+let activeContextMenu: HTMLElement | null = null;
+
+function removeContextMenu(): void {
+  if (activeContextMenu) {
+    activeContextMenu.remove();
+    activeContextMenu = null;
+  }
+}
+
+function showContextMenu(x: number, y: number, filePath: string): void {
+  removeContextMenu();
+
+  const menu = document.createElement("div");
+  menu.className = "context-menu";
+  menu.style.left = `${x}px`;
+  menu.style.top = `${y}px`;
+
+  const deleteItem = document.createElement("button");
+  deleteItem.className = "context-menu-item context-menu-item--danger";
+  deleteItem.textContent = "Delete file";
+  deleteItem.addEventListener("click", async () => {
+    removeContextMenu();
+    const name = filePath.split("/").pop() ?? filePath;
+    if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    try {
+      await deleteFile(filePath);
+      onDeleteCallback?.(filePath);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Delete failed");
+    }
+  });
+
+  menu.appendChild(deleteItem);
+  document.body.appendChild(menu);
+  activeContextMenu = menu;
+
+  // Reposition if it overflows the viewport
+  const rect = menu.getBoundingClientRect();
+  if (rect.right > window.innerWidth) menu.style.left = `${x - rect.width}px`;
+  if (rect.bottom > window.innerHeight) menu.style.top = `${y - rect.height}px`;
+}
+
+document.addEventListener("click", removeContextMenu);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") removeContextMenu(); });
+
+// ── Drag state ───────────────────────────────────────────────────────────────
+
+let dragPath: string | null = null;
+
+// ── Tree builder ─────────────────────────────────────────────────────────────
+
 function buildTreeEl(
   nodes: TreeNode[],
   onSelect: (path: string) => void,
@@ -81,6 +146,34 @@ function buildTreeEl(
       if (node.children && node.children.length > 0) {
         details.appendChild(buildTreeEl(node.children, onSelect, activePathRef));
       }
+
+      // Drop target: highlight on dragover, move on drop
+      details.addEventListener("dragover", (e) => {
+        if (!dragPath) return;
+        e.preventDefault();
+        e.stopPropagation();
+        details.classList.add("drag-over");
+      });
+      details.addEventListener("dragleave", (e) => {
+        if (!details.contains(e.relatedTarget as Node)) {
+          details.classList.remove("drag-over");
+        }
+      });
+      details.addEventListener("drop", async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        details.classList.remove("drag-over");
+        if (!dragPath) return;
+        const src = dragPath;
+        dragPath = null;
+        try {
+          const newPath = await moveFile(src, node.path);
+          onMoveCallback?.(src, newPath);
+        } catch (err) {
+          alert(err instanceof Error ? err.message : "Move failed");
+        }
+      });
+
       li.appendChild(details);
     } else {
       const btn = document.createElement("button");
@@ -88,6 +181,7 @@ function buildTreeEl(
       btn.dataset["path"] = node.path;
       btn.textContent = node.name.replace(/\.md$/, "");
       btn.title = node.path;
+      btn.draggable = true;
 
       if (activePathRef.current === node.path) {
         btn.classList.add("active");
@@ -100,6 +194,22 @@ function buildTreeEl(
         btn.classList.add("active");
         activePathRef.current = node.path;
         onSelect(node.path);
+      });
+
+      btn.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        showContextMenu(e.clientX, e.clientY, node.path);
+      });
+
+      btn.addEventListener("dragstart", (e) => {
+        dragPath = node.path;
+        e.dataTransfer!.effectAllowed = "move";
+        btn.classList.add("dragging");
+      });
+      btn.addEventListener("dragend", () => {
+        dragPath = null;
+        btn.classList.remove("dragging");
+        document.querySelectorAll(".drag-over").forEach((el) => el.classList.remove("drag-over"));
       });
 
       li.appendChild(btn);
@@ -128,4 +238,13 @@ export function setActiveInTree(path: string): void {
       parent = parent.parentElement;
     }
   });
+}
+
+// Collect all directory paths from the tree for the command palette
+export function getAllDirPaths(): string[] {
+  const dirs: string[] = [""];  // root (empty string)
+  document.querySelectorAll<HTMLDetailsElement>("details[data-path]").forEach((el) => {
+    if (el.dataset["path"]) dirs.push(el.dataset["path"]);
+  });
+  return dirs;
 }

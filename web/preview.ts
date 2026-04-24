@@ -42,9 +42,9 @@ export function renderMarkdown(markdown: string): MarkdownResult {
   const raw = marked.parse(stripped) as string;
   const withLinks = processWikilinks(raw);
   const html = DOMPurify.sanitize(withLinks, {
-    ADD_ATTR: ["data-wikilink"],
-    ADD_TAGS: ["a"],
-    ALLOWED_ATTR: ["href", "class", "data-wikilink", "src", "alt", "title", "target", "rel"],
+    ADD_ATTR: ["data-wikilink", "type", "disabled", "checked"],
+    ADD_TAGS: ["a", "input"],
+    ALLOWED_ATTR: ["href", "class", "data-wikilink", "src", "alt", "title", "target", "rel", "type", "disabled", "checked"],
   });
   return { html, isRtl };
 }
