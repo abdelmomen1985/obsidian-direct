@@ -6,7 +6,7 @@ import { verifySessionCookie } from "./auth.ts";
 import { buildIndex } from "./wikilink-index.ts";
 import { handleLogin, handleLogout } from "./routes/login.ts";
 import { handleTree } from "./routes/tree.ts";
-import { handleGetFile, handlePutFile } from "./routes/file.ts";
+import { handleGetFile, handlePutFile, handleDeleteFile, handleMoveFile } from "./routes/file.ts";
 import { handleSearch } from "./routes/search.ts";
 import { handleResolveWikilink } from "./routes/wikilink.ts";
 
@@ -99,6 +99,8 @@ const server = Bun.serve({
       if (method === "GET" && path === "/api/tree") return handleTree();
       if (method === "GET" && path === "/api/file") return handleGetFile(req);
       if (method === "PUT" && path === "/api/file") return handlePutFile(req);
+      if (method === "DELETE" && path === "/api/file") return handleDeleteFile(req);
+      if (method === "POST" && path === "/api/file/move") return handleMoveFile(req);
       if (method === "GET" && path === "/api/search") return handleSearch(req);
       if (method === "GET" && path === "/api/resolve") return handleResolveWikilink(req);
 
