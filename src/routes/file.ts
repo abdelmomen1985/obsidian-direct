@@ -1,4 +1,4 @@
-import { readFile, writeFile, rename, mkdir, unlink } from "fs/promises";
+import { readFile, writeFile, rename, mkdir, unlink, stat } from "fs/promises";
 import { dirname, basename, join } from "path";
 import { config } from "../config.ts";
 import { safeResolveStat, safeResolve } from "../paths.ts";
@@ -92,7 +92,25 @@ export async function handleMoveFile(req: Request): Promise<Response> {
     const destRelPath = destDir ? `${destDir}/${fileName}` : fileName;
     const destAbs = safeResolve(config.vaultPath, destRelPath);
 
+    if (srcAbs === destAbs) {
+      return new Response(JSON.stringify({ error: "File is already in that directory" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     await mkdir(dirname(destAbs), { recursive: true });
+
+    try {
+      await stat(destAbs);
+      return new Response(
+        JSON.stringify({ error: `A file named "${fileName}" already exists at the destination` }),
+        { status: 409, headers: { "Content-Type": "application/json" } }
+      );
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+    }
+
     await rename(srcAbs, destAbs);
 
     removeFromIndex(relPath);
