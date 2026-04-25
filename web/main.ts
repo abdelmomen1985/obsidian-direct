@@ -22,6 +22,8 @@ import { createSearchPanel } from "./search.ts";
 import { createCommandPalette, openMoveFilePalette } from "./command-palette.ts";
 import { themeManager } from "./themes.ts";
 import { EditorView } from "@codemirror/view";
+import { createBaseTableView } from "./bases/base-table.ts";
+import { processEmbeddedBases } from "./bases/base-embedded.ts";
 
 const app = document.getElementById("app")!;
 
@@ -419,6 +421,10 @@ function showApp(): void {
       previewEl.innerHTML = html;
       previewEl.setAttribute("dir", isRtl ? "rtl" : "ltr");
       editorPaneEl.setAttribute("dir", isRtl ? "rtl" : "ltr");
+      processEmbeddedBases(previewEl, {
+        onOpenNote: openFile,
+        onRefresh: () => {},
+      });
     }, 150);
   }
 
@@ -457,6 +463,24 @@ function showApp(): void {
     setActiveInTree(path);
     titleEl.textContent = displayName(path);
     setStatus("idle");
+
+    // .base files open in table view
+    if (path.endsWith(".base")) {
+      editorPaneEl.classList.add("hidden");
+      previewPaneEl.classList.remove("hidden");
+      previewPaneEl.classList.add("full-width");
+      previewEl.innerHTML = "";
+      const { el } = createBaseTableView(path, {
+        onOpenNote: (notePath) => void openFile(notePath),
+        onRefresh: () => {},
+      });
+      previewEl.appendChild(el);
+      updateWordCount("");
+      return;
+    }
+
+    // restore normal view mode for .md files
+    applyViewMode();
 
     try {
       const content = await getFile(path);

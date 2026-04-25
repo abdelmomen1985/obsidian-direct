@@ -4,6 +4,7 @@ import { existsSync } from "fs";
 
 const READ_EXTS = new Set([
   ".md",
+  ".base",
   ".png",
   ".jpg",
   ".jpeg",
