@@ -30,6 +30,8 @@ import {
   handleMutateBase,
   getVaultIndex,
 } from "./routes/bases.ts";
+import { handleBacklinks } from "./routes/backlinks.ts";
+import { handleTags, handleTagFiles } from "./routes/tags.ts";
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -132,6 +134,9 @@ const server = Bun.serve({
       if (method === "POST" && path === "/api/folder/create") return handleCreateFolder(req);
       if (method === "GET" && path === "/api/search") return handleSearch(req);
       if (method === "GET" && path === "/api/resolve") return handleResolveWikilink(req);
+      if (method === "GET" && path === "/api/backlinks") return handleBacklinks(req);
+      if (method === "GET" && path === "/api/tags") return handleTags(req);
+      if (method === "GET" && path === "/api/tags/files") return handleTagFiles(req);
 
       // Bases endpoints
       if (method === "GET" && path === "/api/bases/index") return handleGetIndex();
