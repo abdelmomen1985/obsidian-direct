@@ -1,6 +1,7 @@
 import type { BaseTableCallbacks } from "./base-table.ts";
 import type { IndexedNote, QueryResponse } from "./base-api.ts";
 import { queryBaseInline } from "./base-api.ts";
+import { buildCardList } from "./base-card-view.ts";
 
 export function processEmbeddedBases(
   container: HTMLElement,
@@ -112,6 +113,13 @@ function renderEmbeddedTable(
   container.appendChild(info);
 
   const columns = resolveColumnsForEmbed(response, view?.columns);
+
+  if (view?.type === "list" || view?.type === "gallery") {
+    container.appendChild(
+      buildCardList(columns, notes, definition, view, callbacks)
+    );
+    return;
+  }
   const table = document.createElement("table");
   table.className = "base-table";
 

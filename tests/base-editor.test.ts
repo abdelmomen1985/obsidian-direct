@@ -194,6 +194,19 @@ describe("applyMutation: views", () => {
     expect(def.views?.[0]?.name).toBe("All");
   });
 
+  it("adds a list (card) view", () => {
+    const start = "views:\n  - name: Table\n    type: table\n";
+    const { yaml } = applyMutation(start, {
+      type: "addView",
+      view: { name: "Cards", type: "list" },
+    });
+    const def = reparse(yaml);
+    expect(def.views).toHaveLength(2);
+    expect(def.views?.[1]?.name).toBe("Cards");
+    expect(def.views?.[1]?.type).toBe("list");
+    expect(def.views?.[1]?._supported).toBe(true);
+  });
+
   it("removes a view", () => {
     const start =
       "views:\n  - name: A\n    type: table\n  - name: B\n    type: table\n";
