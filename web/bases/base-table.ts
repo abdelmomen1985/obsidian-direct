@@ -324,12 +324,14 @@ function startCellEdit(
     }
   };
 
-  input.addEventListener("blur", () => void commit());
+  let cancelled = false;
+  input.addEventListener("blur", () => { if (!cancelled) void commit(); });
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
       input.blur();
     } else if (e.key === "Escape") {
+      cancelled = true;
       td.textContent = formatValue(currentValue);
     }
   });

@@ -132,7 +132,7 @@ function parseFilterGroup(
   }
 
   // direct condition at top level (shorthand)
-  if ("property" in obj && "operator" in obj) {
+  if (!group.and && !group.or && !group.not && "property" in obj && "operator" in obj) {
     group.and = [parseFilterCondition(obj, warnings)];
   }
 
