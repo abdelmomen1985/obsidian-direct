@@ -17,13 +17,16 @@ import {
   italicSelection,
   wikilinkSelection,
 } from "./editor.ts";
-import { renderMarkdown, attachWikilinkHandlers } from "./preview.ts";
+import { renderMarkdown, attachWikilinkHandlers, renderMermaidBlocks, attachCheckboxHandlers } from "./preview.ts";
 import { createSearchPanel } from "./search.ts";
 import { createCommandPalette, openMoveFilePalette } from "./command-palette.ts";
 import { themeManager } from "./themes.ts";
 import { EditorView } from "@codemirror/view";
 import { createBaseTableView } from "./bases/base-table.ts";
 import { processEmbeddedBases } from "./bases/base-embedded.ts";
+import { createBacklinksPanel } from "./backlinks.ts";
+import { createOutlinePanel } from "./outline.ts";
+import { createTagsPane } from "./tags.ts";
 
 const app = document.getElementById("app")!;
 
@@ -148,6 +151,34 @@ function showApp(): void {
         <div class="preview-pane" id="preview-pane">
           <div id="preview-content" class="preview-content markdown-body"></div>
         </div>
+
+        <aside class="right-sidebar" id="right-sidebar">
+          <div class="right-sidebar-tabs">
+            <button class="rsb-tab active" data-tab="outline" title="Outline">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="18" y2="18"/>
+              </svg>
+            </button>
+            <button class="rsb-tab" data-tab="backlinks" title="Backlinks">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+              </svg>
+            </button>
+            <button class="rsb-tab" data-tab="tags" title="Tags">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+                <line x1="7" y1="7" x2="7.01" y2="7"/>
+              </svg>
+            </button>
+            <button id="rsb-toggle" class="rsb-toggle" title="Toggle right sidebar">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/>
+              </svg>
+            </button>
+          </div>
+          <div class="right-sidebar-content" id="rsb-content"></div>
+        </aside>
       </div>
     </div>
     <div id="search-overlay"></div>
@@ -163,6 +194,52 @@ function showApp(): void {
   const titleEl = document.getElementById("current-title")!;
   const searchOverlay = document.getElementById("search-overlay")!;
   const cmdOverlayEl = document.getElementById("cmd-overlay-container")!;
+  const rsbContent = document.getElementById("rsb-content")!;
+  const rightSidebar = document.getElementById("right-sidebar")!;
+
+  // ── Right sidebar panels ──────────────────────────────────────────────────
+  const outlinePanel = createOutlinePanel((line) => {
+    if (!editorView) return;
+    const pos = editorView.state.doc.line(Math.min(line, editorView.state.doc.lines)).from;
+    editorView.dispatch({
+      selection: { anchor: pos },
+      scrollIntoView: true,
+    });
+    editorView.focus();
+  });
+
+  const backlinksPanel = createBacklinksPanel((path) => void openFile(path));
+  const tagsPane = createTagsPane((path) => void openFile(path));
+
+  const panels: Record<string, HTMLElement> = {
+    outline: outlinePanel.el,
+    backlinks: backlinksPanel.el,
+    tags: tagsPane.el,
+  };
+  let activeTab = "outline";
+  rsbContent.appendChild(outlinePanel.el);
+
+  // Tab switching
+  rightSidebar.querySelectorAll<HTMLElement>(".rsb-tab[data-tab]").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      const tabName = tab.dataset["tab"] ?? "";
+      if (!tabName || tabName === activeTab) return;
+      rightSidebar.querySelectorAll(".rsb-tab").forEach((t) => t.classList.remove("active"));
+      tab.classList.add("active");
+      rsbContent.innerHTML = "";
+      const panel = panels[tabName];
+      if (panel) rsbContent.appendChild(panel);
+      activeTab = tabName;
+      if (tabName === "tags") void tagsPane.refresh();
+    });
+  });
+
+  // Toggle right sidebar visibility
+  let rsbVisible = true;
+  document.getElementById("rsb-toggle")!.addEventListener("click", () => {
+    rsbVisible = !rsbVisible;
+    rightSidebar.classList.toggle("collapsed", !rsbVisible);
+  });
 
   // ── Editor ──────────────────────────────────────────────────────────────
   editorView = createEditor(
@@ -181,6 +258,23 @@ function showApp(): void {
   );
 
   attachWikilinkHandlers(previewEl, openFile);
+  attachCheckboxHandlers(previewEl, (lineIndex, checked) => {
+    if (!editorView || !currentPath) return;
+    const doc = getEditorContent(editorView);
+    const lines = doc.split("\n");
+    if (lineIndex < 0 || lineIndex >= lines.length) return;
+    const line = lines[lineIndex] ?? "";
+    const updated = checked
+      ? line.replace(/- \[ \]/, "- [x]")
+      : line.replace(/- \[x\]/i, "- [ ]");
+    if (updated !== line) {
+      lines[lineIndex] = updated;
+      const newDoc = lines.join("\n");
+      setEditorContent(editorView, newDoc);
+      isDirty = true;
+      scheduleSave();
+    }
+  });
 
   // ── File tree ────────────────────────────────────────────────────────────
   setTreeCallbacks({
@@ -478,6 +572,8 @@ function showApp(): void {
         onOpenNote: openFile,
         onRefresh: () => {},
       });
+      void renderMermaidBlocks(previewEl);
+      outlinePanel.update(doc);
     }, 150);
   }
 
@@ -559,10 +655,14 @@ function showApp(): void {
         isDirty = false;
         updatePreview(content);
         updateWordCount(content);
+        outlinePanel.update(content);
       }
     } catch {
       setStatus("error", "Failed to load file");
     }
+
+    // Update backlinks for newly opened file
+    void backlinksPanel.update(path);
   }
 
   // ── File operations ─────────────────────────────────────────────────────

@@ -142,6 +142,35 @@ export async function renameFile(oldPath: string, newPath: string): Promise<stri
   return data.path;
 }
 
+export interface BacklinkResult {
+  path: string;
+  context: string;
+}
+
+export interface TagEntry {
+  tag: string;
+  count: number;
+  files: string[];
+}
+
+export async function getBacklinks(path: string): Promise<BacklinkResult[]> {
+  const res = await apiFetch(`/api/backlinks?path=${encodeURIComponent(path)}`);
+  if (!res.ok) throw new Error("Failed to load backlinks");
+  return res.json() as Promise<BacklinkResult[]>;
+}
+
+export async function getTags(): Promise<TagEntry[]> {
+  const res = await apiFetch("/api/tags");
+  if (!res.ok) throw new Error("Failed to load tags");
+  return res.json() as Promise<TagEntry[]>;
+}
+
+export async function getTagFiles(tag: string): Promise<string[]> {
+  const res = await apiFetch(`/api/tags/files?tag=${encodeURIComponent(tag)}`);
+  if (!res.ok) throw new Error("Failed to load tag files");
+  return res.json() as Promise<string[]>;
+}
+
 export async function createFolder(path: string): Promise<string> {
   const res = await apiFetch("/api/folder/create", {
     method: "POST",
