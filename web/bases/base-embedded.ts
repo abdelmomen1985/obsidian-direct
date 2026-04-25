@@ -1,6 +1,6 @@
-import { createBaseTableView } from "./base-table.ts";
 import type { BaseTableCallbacks } from "./base-table.ts";
-import { queryBase } from "./base-api.ts";
+import type { IndexedNote, QueryResponse } from "./base-api.ts";
+import { queryBaseInline } from "./base-api.ts";
 
 export function processEmbeddedBases(
   container: HTMLElement,
@@ -69,15 +69,147 @@ export function processEmbeddedBases(
 
 async function loadEmbeddedBase(
   container: HTMLElement,
-  _yamlContent: string,
+  yamlContent: string,
   callbacks: BaseTableCallbacks
 ): Promise<void> {
-  // Embedded bases display a simplified table from inline YAML
-  // For now we display the raw content with a note that full embedded support
-  // requires the YAML to be saved as a .base file first
-  container.innerHTML = `
-    <div class="base-embedded-info">
-      <p>Embedded base definitions are detected. To view as a table, save the YAML as a <code>.base</code> file and open it from the file tree.</p>
-    </div>
-  `;
+  try {
+    const response = await queryBaseInline(yamlContent, 0);
+    container.innerHTML = "";
+    renderEmbeddedTable(container, response, callbacks);
+  } catch (err) {
+    container.innerHTML = `
+      <div class="base-embedded-info">
+        <p>Failed to render embedded base: ${escapeHtml(err instanceof Error ? err.message : String(err))}</p>
+      </div>
+    `;
+  }
+}
+
+function renderEmbeddedTable(
+  container: HTMLElement,
+  response: QueryResponse,
+  callbacks: BaseTableCallbacks
+): void {
+  const { definition, warnings, total } = response;
+  const view = definition.views?.[0];
+
+  if (warnings.length > 0) {
+    const warn = document.createElement("div");
+    warn.className = "base-warnings";
+    warn.innerHTML = warnings
+      .map((w) => `<div class="base-warning">${escapeHtml(w)}</div>`)
+      .join("");
+    container.appendChild(warn);
+  }
+
+  const notes = Array.isArray(response.notes)
+    ? response.notes
+    : Object.values(response.notes).flat();
+
+  const info = document.createElement("div");
+  info.className = "base-info-bar";
+  info.textContent = `${notes.length} of ${total} notes`;
+  container.appendChild(info);
+
+  const columns = resolveColumnsForEmbed(response, view?.columns);
+  const table = document.createElement("table");
+  table.className = "base-table";
+
+  const thead = document.createElement("thead");
+  const headerRow = document.createElement("tr");
+  for (const col of columns) {
+    const th = document.createElement("th");
+    th.className = "base-th";
+    const propDef = definition.properties?.find((p) => p.name === col);
+    th.textContent = propDef?.label ?? formatColumnName(col);
+    th.title = col;
+    headerRow.appendChild(th);
+  }
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  for (const note of notes) {
+    const tr = document.createElement("tr");
+    tr.className = "base-tr";
+    for (const col of columns) {
+      const td = document.createElement("td");
+      td.className = "base-td";
+      const value = getCellValue(note, col);
+      if (col === "file.name" || col === "file.path") {
+        const link = document.createElement("a");
+        link.href = "#";
+        link.className = "base-note-link";
+        link.textContent = String(value ?? note.name);
+        link.addEventListener("click", (e) => {
+          e.preventDefault();
+          callbacks.onOpenNote(note.path);
+        });
+        td.appendChild(link);
+      } else {
+        td.textContent = formatValue(value);
+      }
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  container.appendChild(table);
+}
+
+function resolveColumnsForEmbed(
+  response: QueryResponse,
+  declared?: string[]
+): string[] {
+  if (declared && declared.length > 0) return declared;
+  if (response.definition.properties && response.definition.properties.length > 0) {
+    return response.definition.properties.filter((p) => !p.hidden).map((p) => p.name);
+  }
+  const out = new Set<string>(["file.name"]);
+  const flat = Array.isArray(response.notes)
+    ? response.notes
+    : Object.values(response.notes).flat();
+  for (const note of flat.slice(0, 50)) {
+    for (const k of Object.keys(note.frontmatter)) out.add(k);
+  }
+  return [...out];
+}
+
+function getCellValue(note: IndexedNote, column: string): unknown {
+  if (column.startsWith("formula:")) {
+    return note.formulaValues?.[column.slice("formula:".length)];
+  }
+  switch (column) {
+    case "file.name": return note.name;
+    case "file.path": return note.path;
+    case "file.folder": return note.folder;
+    case "file.ext": return note.ext;
+    case "file.mtime": return note.mtime;
+    case "file.ctime": return note.ctime;
+    case "file.tags":
+    case "tags": return note.tags.join(", ");
+    default: return note.frontmatter[column];
+  }
+}
+
+function formatValue(value: unknown): string {
+  if (value === undefined || value === null) return "";
+  if (Array.isArray(value)) return value.join(", ");
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "number" && value > 1e12) return new Date(value).toLocaleString();
+  return String(value);
+}
+
+function formatColumnName(col: string): string {
+  if (col.startsWith("formula:")) return col.slice("formula:".length);
+  if (col.startsWith("file.")) return col.slice("file.".length);
+  return col.charAt(0).toUpperCase() + col.slice(1).replace(/[-_]/g, " ");
+}
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }

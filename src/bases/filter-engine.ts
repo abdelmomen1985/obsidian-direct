@@ -107,34 +107,42 @@ function evaluateFilterGroup(
   note: IndexedNote,
   group: FilterGroup
 ): EvalResult {
-  let hasAnyBranch = false;
-
   if (group.and) {
-    hasAnyBranch = true;
+    let firstUnsupported: EvalResult | null = null;
     for (const item of group.and) {
       const result = isFilterCondition(item)
         ? evaluateCondition(note, item)
         : evaluateFilterGroup(note, item);
-      if (!result.supported) return result;
+      if (!result.supported) {
+        // Defer the unsupported decision: a later branch may definitively be false.
+        if (!firstUnsupported) firstUnsupported = result;
+        continue;
+      }
       if (!result.matches) return { supported: true, matches: false };
     }
+    if (firstUnsupported) return firstUnsupported;
   }
 
   if (group.or) {
-    hasAnyBranch = true;
     let anyMatch = false;
+    let firstUnsupported: EvalResult | null = null;
     for (const item of group.or) {
       const result = isFilterCondition(item)
         ? evaluateCondition(note, item)
         : evaluateFilterGroup(note, item);
-      if (!result.supported) { if (!anyMatch) return result; }
+      if (!result.supported) {
+        if (!firstUnsupported) firstUnsupported = result;
+        continue;
+      }
       if (result.matches) { anyMatch = true; break; }
     }
-    if (!anyMatch) return { supported: true, matches: false };
+    if (!anyMatch) {
+      if (firstUnsupported) return firstUnsupported;
+      return { supported: true, matches: false };
+    }
   }
 
   if (group.not) {
-    hasAnyBranch = true;
     const inner = isFilterCondition(group.not)
       ? evaluateCondition(note, group.not)
       : evaluateFilterGroup(note, group.not);
@@ -142,7 +150,6 @@ function evaluateFilterGroup(
     if (inner.matches) return { supported: true, matches: false };
   }
 
-  // all present branches matched (or empty group matches everything)
   return { supported: true, matches: true };
 }
 

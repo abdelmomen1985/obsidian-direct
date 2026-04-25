@@ -82,6 +82,10 @@ export class VaultIndex {
     this.notes.delete(relPath);
   }
 
+  async reindexNote(relPath: string): Promise<void> {
+    await this.reindexFile(relPath);
+  }
+
   private async reindexFile(relPath: string): Promise<void> {
     const absPath = join(this.vaultRoot, relPath);
     try {

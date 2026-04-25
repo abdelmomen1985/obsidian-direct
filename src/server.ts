@@ -25,7 +25,9 @@ import {
   handleGetBase,
   handleListBases,
   handleQuery,
+  handleQueryInline,
   handleUpdateProperty,
+  handleMutateBase,
   getVaultIndex,
 } from "./routes/bases.ts";
 
@@ -138,7 +140,9 @@ const server = Bun.serve({
       if (method === "GET" && path === "/api/bases/base") return handleGetBase(req);
       if (method === "GET" && path === "/api/bases/list") return handleListBases();
       if (method === "GET" && path === "/api/bases/query") return handleQuery(req);
+      if (method === "POST" && path === "/api/bases/query-inline") return handleQueryInline(req);
       if (method === "POST" && path === "/api/bases/property") return handleUpdateProperty(req);
+      if (method === "POST" && path === "/api/bases/definition") return handleMutateBase(req);
 
       return notFound();
     }
