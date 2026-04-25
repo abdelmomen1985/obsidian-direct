@@ -135,9 +135,11 @@ export function createBaseTableView(
       type: "addView",
       view: { name: result.name, type: result.type },
     });
-    // jump to the newly-added view
-    if (lastResponse?.definition.views) {
-      currentViewIndex = lastResponse.definition.views.length;
+    // jump to the newly-added view (refresh() already updated lastResponse)
+    const views = lastResponse?.definition.views;
+    if (views && views.length > 0) {
+      currentViewIndex = views.length - 1;
+      await refresh();
     }
   }
 
