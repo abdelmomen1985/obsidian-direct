@@ -4,8 +4,10 @@ import type {
   ViewDefinition,
   QueryResponse,
   PropertyDefinition,
+  PropertyPatch,
+  BaseMutation,
 } from "./base-api.ts";
-import { queryBase, updateProperty } from "./base-api.ts";
+import { queryBase, updateProperty, mutateBase } from "./base-api.ts";
 
 export interface BaseTableCallbacks {
   onOpenNote: (path: string) => void;
@@ -25,9 +27,28 @@ export function createBaseTableView(
   const wrapper = document.createElement("div");
   wrapper.className = "base-view-wrapper";
 
+  let currentViewIndex = 0;
+  let currentSort: SortState | null = null;
+  let lastResponse: QueryResponse | null = null;
+  let baseMtime: number | undefined;
+  let openMenuCleanup: (() => void) | null = null;
+
   // Persistent toolbar — not wiped on re-render
   const toolbar = document.createElement("div");
   toolbar.className = "base-toolbar";
+
+  const addColBtn = document.createElement("button");
+  addColBtn.className = "base-toolbar-btn icon-btn";
+  addColBtn.title = "Add a column to this view";
+  addColBtn.innerHTML = `
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+    Add column
+  `;
+  addColBtn.addEventListener("click", () => void promptAddColumn());
+  toolbar.appendChild(addColBtn);
+
   if (callbacks.onToggleSource) {
     const sourceBtn = document.createElement("button");
     sourceBtn.className = "base-source-btn icon-btn";
@@ -48,10 +69,6 @@ export function createBaseTableView(
   container.className = "base-view";
   wrapper.appendChild(container);
 
-  let currentViewIndex = 0;
-  let currentSort: SortState | null = null;
-  let lastResponse: QueryResponse | null = null;
-
   async function refresh(): Promise<void> {
     try {
       container.innerHTML = '<div class="base-loading">Loading base…</div>';
@@ -63,10 +80,57 @@ export function createBaseTableView(
     }
   }
 
+  async function applyMutation(mutation: BaseMutation): Promise<void> {
+    try {
+      const result = await mutateBase(basePath, mutation, baseMtime);
+      baseMtime = result.mtime;
+      await refresh();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to update base";
+      if (msg.startsWith("CONFLICT:")) {
+        alert("This base file changed externally. Reloading.");
+        await refresh();
+      } else {
+        alert(msg);
+      }
+    }
+  }
+
+  async function promptAddColumn(): Promise<void> {
+    const suggestions = collectKnownProperties(lastResponse);
+    const name = await pickColumnName(suggestions);
+    if (!name) return;
+    await applyMutation({
+      type: "addColumn",
+      viewIndex: currentViewIndex,
+      column: name,
+    });
+  }
+
+  async function removeColumnAt(column: string): Promise<void> {
+    if (!confirm(`Remove column "${column}" from this view?`)) return;
+    await applyMutation({
+      type: "removeColumn",
+      viewIndex: currentViewIndex,
+      column,
+    });
+  }
+
+  async function editPropertyMeta(column: string, currentDef?: PropertyDefinition): Promise<void> {
+    const patch = await openPropertyDialog(column, currentDef);
+    if (!patch) return;
+    if (currentDef) {
+      await applyMutation({ type: "updateProperty", oldName: column, property: patch });
+    } else {
+      await applyMutation({ type: "addProperty", property: patch });
+    }
+  }
+
   function render(response: QueryResponse): void {
     container.innerHTML = "";
 
     const { definition, warnings, total } = response;
+    if (typeof response.mtime === "number") baseMtime = response.mtime;
 
     // warnings bar
     if (warnings.length > 0) {
@@ -130,6 +194,9 @@ export function createBaseTableView(
     infoBar.textContent = `${notes.length} of ${total} notes`;
     container.appendChild(infoBar);
 
+    // re-apply persistent client-side sort (if user has sorted by clicking)
+    const sortedFlat = currentSort ? applyClientSort(notes, currentSort) : notes;
+
     // grouped rendering
     if (!Array.isArray(response.notes)) {
       const grouped = response.notes as Record<string, IndexedNote[]>;
@@ -142,16 +209,152 @@ export function createBaseTableView(
         groupHeader.textContent = groupKey;
         groupEl.appendChild(groupHeader);
 
-        groupEl.appendChild(
-          buildTable(columns, groupNotes, definition, callbacks)
-        );
+        const sorted = currentSort ? applyClientSort(groupNotes, currentSort) : groupNotes;
+        groupEl.appendChild(buildTable(columns, sorted, definition));
         container.appendChild(groupEl);
       }
     } else {
-      container.appendChild(
-        buildTable(columns, notes, definition, callbacks)
-      );
+      container.appendChild(buildTable(columns, sortedFlat, definition));
     }
+  }
+
+  function buildTable(
+    columns: string[],
+    notes: IndexedNote[],
+    definition: BaseDefinition
+  ): HTMLElement {
+    const table = document.createElement("table");
+    table.className = "base-table";
+
+    const thead = document.createElement("thead");
+    const headerRow = document.createElement("tr");
+    for (const col of columns) {
+      headerRow.appendChild(buildHeader(col, definition));
+    }
+    // Trailing "+" cell to add a column inline at end-of-row
+    const addTh = document.createElement("th");
+    addTh.className = "base-th base-th-add";
+    addTh.title = "Add column";
+    addTh.textContent = "+";
+    addTh.addEventListener("click", () => void promptAddColumn());
+    headerRow.appendChild(addTh);
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+    for (const note of notes) {
+      tbody.appendChild(buildRow(columns, note, definition, callbacks, /*hasTrailingAddCol*/ true));
+    }
+    table.appendChild(tbody);
+
+    return table;
+  }
+
+  function buildHeader(
+    col: string,
+    definition: BaseDefinition
+  ): HTMLTableCellElement {
+    const th = document.createElement("th");
+    th.className = "base-th";
+
+    const propDef = definition.properties?.find((p) => p.name === col);
+    const label = propDef?.label ?? formatColumnName(col);
+
+    const labelSpan = document.createElement("span");
+    labelSpan.className = "base-th-label";
+    labelSpan.textContent = label;
+    th.appendChild(labelSpan);
+    th.title = col;
+
+    if (propDef?.width) th.style.width = `${propDef.width}px`;
+
+    if (currentSort?.column === col) {
+      th.classList.add(`sort-${currentSort.direction}`);
+    }
+
+    // sort on click (clicking on label or header background)
+    labelSpan.addEventListener("click", () => {
+      const newDir: "asc" | "desc" =
+        currentSort?.column === col && currentSort.direction === "asc" ? "desc" : "asc";
+      currentSort = { column: col, direction: newDir };
+      if (lastResponse) render(lastResponse);
+    });
+
+    // header-options menu (⋮)
+    const menuBtn = document.createElement("button");
+    menuBtn.className = "base-th-menu";
+    menuBtn.title = "Column options";
+    menuBtn.innerHTML = "⋮";
+    menuBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openColumnMenu(menuBtn, col, propDef);
+    });
+    th.appendChild(menuBtn);
+
+    return th;
+  }
+
+  function openColumnMenu(
+    anchor: HTMLElement,
+    column: string,
+    propDef: PropertyDefinition | undefined
+  ): void {
+    closeAnyOpenMenu();
+    const menu = document.createElement("div");
+    menu.className = "base-th-popup";
+
+    const isFileCol = column.startsWith("file.") || column.startsWith("formula:");
+
+    addMenuItem(menu, "Sort ascending", () => {
+      currentSort = { column, direction: "asc" };
+      if (lastResponse) render(lastResponse);
+    });
+    addMenuItem(menu, "Sort descending", () => {
+      currentSort = { column, direction: "desc" };
+      if (lastResponse) render(lastResponse);
+    });
+    addMenuItem(menu, "Clear sort", () => {
+      currentSort = null;
+      if (lastResponse) render(lastResponse);
+    });
+
+    if (!isFileCol) {
+      addMenuItem(menu, propDef ? "Edit property…" : "Set property metadata…", () => {
+        void editPropertyMeta(column, propDef);
+      });
+    }
+
+    addMenuItem(menu, "Remove from view", () => {
+      void removeColumnAt(column);
+    });
+
+    if (!isFileCol) {
+      addMenuItem(menu, "Delete property (and column)", () => {
+        if (confirm(`Delete property "${column}" from base definition? This will not modify any notes.`)) {
+          void applyMutation({ type: "removeProperty", name: column });
+        }
+      });
+    }
+
+    document.body.appendChild(menu);
+    const rect = anchor.getBoundingClientRect();
+    menu.style.position = "fixed";
+    menu.style.top = `${rect.bottom + 4}px`;
+    menu.style.left = `${rect.left}px`;
+
+    const onDocClick = (ev: MouseEvent) => {
+      if (!menu.contains(ev.target as Node)) closeAnyOpenMenu();
+    };
+    setTimeout(() => document.addEventListener("click", onDocClick), 0);
+    openMenuCleanup = () => {
+      document.removeEventListener("click", onDocClick);
+      menu.remove();
+      openMenuCleanup = null;
+    };
+  }
+
+  function closeAnyOpenMenu(): void {
+    if (openMenuCleanup) openMenuCleanup();
   }
 
   void refresh();
@@ -194,82 +397,12 @@ function resolveColumns(
   return [...columnSet];
 }
 
-function buildTable(
-  columns: string[],
-  notes: IndexedNote[],
-  definition: BaseDefinition,
-  callbacks: BaseTableCallbacks
-): HTMLElement {
-  const table = document.createElement("table");
-  table.className = "base-table";
-
-  // header
-  const thead = document.createElement("thead");
-  const headerRow = document.createElement("tr");
-  for (const col of columns) {
-    const th = document.createElement("th");
-    th.className = "base-th";
-
-    const propDef = definition.properties?.find((p) => p.name === col);
-    const label = propDef?.label ?? formatColumnName(col);
-    th.textContent = label;
-    th.title = col;
-
-    if (propDef?.width) {
-      th.style.width = `${propDef.width}px`;
-    }
-
-    // sort on click
-    th.addEventListener("click", () => {
-      // re-sort in-memory (simple client-side toggle)
-      const sortedNotes = [...notes].sort((a, b) => {
-        const aVal = getCellValue(a, col);
-        const bVal = getCellValue(b, col);
-        const cmp = compareValues(aVal, bVal);
-        // toggle direction
-        const existingDir = th.dataset["sortDir"];
-        return existingDir === "asc" ? -cmp : cmp;
-      });
-      const newDir = th.dataset["sortDir"] === "asc" ? "desc" : "asc";
-
-      // re-render just the tbody
-      const tbody = table.querySelector("tbody");
-      if (tbody) {
-        tbody.innerHTML = "";
-        for (const note of sortedNotes) {
-          tbody.appendChild(buildRow(columns, note, definition, callbacks));
-        }
-      }
-
-      // update sort indicators
-      thead.querySelectorAll("th").forEach((h) => {
-        h.classList.remove("sort-asc", "sort-desc");
-        delete h.dataset["sortDir"];
-      });
-      th.dataset["sortDir"] = newDir;
-      th.classList.add(`sort-${newDir}`);
-    });
-
-    headerRow.appendChild(th);
-  }
-  thead.appendChild(headerRow);
-  table.appendChild(thead);
-
-  // body
-  const tbody = document.createElement("tbody");
-  for (const note of notes) {
-    tbody.appendChild(buildRow(columns, note, definition, callbacks));
-  }
-  table.appendChild(tbody);
-
-  return table;
-}
-
 function buildRow(
   columns: string[],
   note: IndexedNote,
   definition: BaseDefinition,
-  callbacks: BaseTableCallbacks
+  callbacks: BaseTableCallbacks,
+  hasTrailingAddCol = false
 ): HTMLTableRowElement {
   const tr = document.createElement("tr");
   tr.className = "base-tr";
@@ -280,7 +413,6 @@ function buildRow(
 
     const value = getCellValue(note, col);
 
-    // file.name is a clickable link
     if (col === "file.name" || col === "file.path") {
       const link = document.createElement("a");
       link.href = "#";
@@ -292,15 +424,12 @@ function buildRow(
       });
       td.appendChild(link);
     } else if (col.startsWith("formula:")) {
-      // formula columns are read-only
       td.textContent = formatValue(value);
       td.classList.add("base-td-formula");
     } else if (col.startsWith("file.")) {
-      // file properties are read-only
       td.textContent = formatValue(value);
       td.classList.add("base-td-readonly");
     } else {
-      // editable frontmatter property
       td.textContent = formatValue(value);
       td.classList.add("base-td-editable");
       td.addEventListener("dblclick", () => {
@@ -311,7 +440,165 @@ function buildRow(
     tr.appendChild(td);
   }
 
+  if (hasTrailingAddCol) {
+    const filler = document.createElement("td");
+    filler.className = "base-td base-td-filler";
+    tr.appendChild(filler);
+  }
+
   return tr;
+}
+
+function applyClientSort(notes: IndexedNote[], sort: SortState): IndexedNote[] {
+  return [...notes].sort((a, b) => {
+    const aVal = getCellValue(a, sort.column);
+    const bVal = getCellValue(b, sort.column);
+    const cmp = compareValues(aVal, bVal);
+    return sort.direction === "desc" ? -cmp : cmp;
+  });
+}
+
+function collectKnownProperties(response: QueryResponse | null): string[] {
+  const known = new Set<string>([
+    "file.name", "file.path", "file.folder", "file.ext",
+    "file.mtime", "file.ctime", "file.tags",
+  ]);
+  if (response) {
+    const def = response.definition;
+    for (const p of def.properties ?? []) known.add(p.name);
+    for (const k of Object.keys(def.formulas ?? {})) known.add(`formula:${k}`);
+    const flat = Array.isArray(response.notes)
+      ? response.notes
+      : Object.values(response.notes).flat();
+    for (const note of flat.slice(0, 100)) {
+      for (const k of Object.keys(note.frontmatter)) known.add(k);
+    }
+  }
+  return [...known].sort();
+}
+
+function addMenuItem(menu: HTMLElement, label: string, onClick: () => void): void {
+  const item = document.createElement("button");
+  item.className = "base-th-popup-item";
+  item.textContent = label;
+  item.addEventListener("click", () => onClick());
+  menu.appendChild(item);
+}
+
+function pickColumnName(suggestions: string[]): Promise<string | null> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "base-modal-overlay";
+    const modal = document.createElement("div");
+    modal.className = "base-modal";
+    modal.innerHTML = `
+      <div class="base-modal-title">Add column</div>
+      <div class="base-modal-body">
+        <label class="base-modal-label">Property name</label>
+        <input class="base-modal-input" type="text" list="base-col-suggestions" placeholder="e.g. status, due, file.mtime">
+        <datalist id="base-col-suggestions">
+          ${suggestions.map((s) => `<option value="${escapeHtml(s)}"></option>`).join("")}
+        </datalist>
+        <div class="base-modal-hint">Use <code>file.*</code> for file metadata, <code>formula:*</code> for formulas, or any frontmatter key.</div>
+      </div>
+      <div class="base-modal-actions">
+        <button class="base-modal-cancel">Cancel</button>
+        <button class="base-modal-ok">Add</button>
+      </div>
+    `;
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    const input = modal.querySelector<HTMLInputElement>(".base-modal-input")!;
+    const ok = modal.querySelector<HTMLButtonElement>(".base-modal-ok")!;
+    const cancel = modal.querySelector<HTMLButtonElement>(".base-modal-cancel")!;
+
+    const close = (val: string | null) => {
+      overlay.remove();
+      resolve(val);
+    };
+
+    ok.addEventListener("click", () => {
+      const v = input.value.trim();
+      close(v || null);
+    });
+    cancel.addEventListener("click", () => close(null));
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) close(null); });
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); ok.click(); }
+      else if (e.key === "Escape") { e.preventDefault(); close(null); }
+    });
+    setTimeout(() => input.focus(), 0);
+  });
+}
+
+function openPropertyDialog(
+  name: string,
+  current: PropertyDefinition | undefined
+): Promise<PropertyPatch | null> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "base-modal-overlay";
+    const modal = document.createElement("div");
+    modal.className = "base-modal";
+
+    const initLabel = current?.label ?? "";
+    const initType = current?.type ?? "";
+    const initWidth = current?.width != null ? String(current.width) : "";
+    const initHidden = current?.hidden === true;
+
+    modal.innerHTML = `
+      <div class="base-modal-title">${current ? "Edit" : "Add"} property: ${escapeHtml(name)}</div>
+      <div class="base-modal-body">
+        <label class="base-modal-label">Name</label>
+        <input class="base-modal-input" data-field="name" type="text" value="${escapeHtml(name)}">
+        <label class="base-modal-label">Label (optional)</label>
+        <input class="base-modal-input" data-field="label" type="text" value="${escapeHtml(initLabel)}">
+        <label class="base-modal-label">Type (optional)</label>
+        <input class="base-modal-input" data-field="type" type="text" placeholder="text, number, date, list, …" value="${escapeHtml(initType)}">
+        <label class="base-modal-label">Width (px, optional)</label>
+        <input class="base-modal-input" data-field="width" type="number" min="40" value="${escapeHtml(initWidth)}">
+        <label class="base-modal-checkbox-row">
+          <input type="checkbox" data-field="hidden" ${initHidden ? "checked" : ""}>
+          Hidden by default
+        </label>
+      </div>
+      <div class="base-modal-actions">
+        <button class="base-modal-cancel">Cancel</button>
+        <button class="base-modal-ok">Save</button>
+      </div>
+    `;
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    const get = (field: string): string =>
+      (modal.querySelector(`[data-field="${field}"]`) as HTMLInputElement).value;
+    const getBool = (field: string): boolean =>
+      (modal.querySelector(`[data-field="${field}"]`) as HTMLInputElement).checked;
+    const ok = modal.querySelector<HTMLButtonElement>(".base-modal-ok")!;
+    const cancel = modal.querySelector<HTMLButtonElement>(".base-modal-cancel")!;
+
+    const close = (val: PropertyPatch | null) => { overlay.remove(); resolve(val); };
+
+    ok.addEventListener("click", () => {
+      const newName = get("name").trim() || name;
+      const labelStr = get("label").trim();
+      const typeStr = get("type").trim();
+      const widthStr = get("width").trim();
+      const widthNum = widthStr === "" ? NaN : Number(widthStr);
+      close({
+        name: newName,
+        // null means "remove this field", undefined means "leave alone"
+        label: labelStr || null,
+        type: typeStr || null,
+        width: widthStr === "" ? null : (isNaN(widthNum) ? null : widthNum),
+        hidden: getBool("hidden") ? true : null,
+      });
+    });
+    cancel.addEventListener("click", () => close(null));
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) close(null); });
+    setTimeout(() => (modal.querySelector('[data-field="label"]') as HTMLInputElement).focus(), 0);
+  });
 }
 
 function startCellEdit(

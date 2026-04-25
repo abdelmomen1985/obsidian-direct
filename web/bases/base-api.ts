@@ -65,6 +65,7 @@ export interface QueryResponse {
   total: number;
   warnings: string[];
   definition: BaseDefinition;
+  mtime?: number;
 }
 
 async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
@@ -126,4 +127,67 @@ export async function getVaultIndex(): Promise<{ notes: IndexedNote[]; count: nu
   const res = await apiFetch("/api/bases/index");
   if (!res.ok) throw new Error("Failed to load index");
   return (await res.json()) as { notes: IndexedNote[]; count: number };
+}
+
+// ── Base definition mutations ────────────────────────────────────────────────
+
+export interface PropertyPatch {
+  name: string;
+  type?: string | null;
+  label?: string | null;
+  width?: number | null;
+  hidden?: boolean | null;
+}
+
+export type BaseMutation =
+  | { type: "addProperty"; property: PropertyPatch }
+  | { type: "updateProperty"; oldName: string; property: PropertyPatch }
+  | { type: "removeProperty"; name: string }
+  | { type: "addColumn"; viewIndex: number; column: string; index?: number }
+  | { type: "removeColumn"; viewIndex: number; column: string }
+  | { type: "reorderColumns"; viewIndex: number; columns: string[] }
+  | { type: "addView"; view: { name: string; type?: string } }
+  | { type: "removeView"; viewIndex: number };
+
+export interface MutationResponse {
+  ok: true;
+  changed: boolean;
+  yaml: string;
+  mtime: number;
+  definition: BaseDefinition;
+  warnings: string[];
+}
+
+export async function mutateBase(
+  basePath: string,
+  mutation: BaseMutation,
+  mtime?: number
+): Promise<MutationResponse> {
+  const body: Record<string, unknown> = { basePath, mutation };
+  if (mtime !== undefined) body["mtime"] = mtime;
+
+  const res = await apiFetch("/api/bases/definition", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string; conflict?: boolean };
+    if (data.conflict) throw new Error("CONFLICT: " + (data.error ?? "Base modified"));
+    throw new Error(data.error ?? "Mutation failed");
+  }
+  return (await res.json()) as MutationResponse;
+}
+
+export async function queryBaseInline(yaml: string, viewIndex = 0): Promise<QueryResponse> {
+  const res = await apiFetch("/api/bases/query-inline", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ yaml, viewIndex }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error ?? "Inline query failed");
+  }
+  return (await res.json()) as QueryResponse;
 }

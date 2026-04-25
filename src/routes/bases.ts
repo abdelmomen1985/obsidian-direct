@@ -1,6 +1,6 @@
 import { readFile, writeFile, rename, stat } from "fs/promises";
 import { readdir } from "fs/promises";
-import { join, extname, relative, dirname } from "path";
+import { join, extname, relative } from "path";
 import { config } from "../config.ts";
 import { safeResolveStat } from "../paths.ts";
 import { PathError } from "../paths.ts";
@@ -10,10 +10,10 @@ import {
   executeQuery,
   groupNotes,
   evaluateFormulas,
-  resolveProperty,
 } from "../bases/filter-engine.ts";
-import { updateFrontmatterProperty, parseFrontmatter } from "../bases/frontmatter.ts";
-import type { BaseDefinition, IndexedNote, ViewDefinition } from "../bases/types.ts";
+import { updateFrontmatterProperty } from "../bases/frontmatter.ts";
+import { applyMutation, type Mutation } from "../bases/base-editor.ts";
+import type { BaseDefinition } from "../bases/types.ts";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -132,6 +132,7 @@ export async function handleQuery(req: Request): Promise<Response> {
     const ext = extname(abs).toLowerCase();
     if (ext !== ".base") return json({ error: "Not a .base file" }, 400);
     const content = await readFile(abs, "utf-8");
+    const baseStat = await stat(abs);
     const { definition, warnings: parseWarnings } = parseBaseYaml(content);
 
     const index = await getVaultIndex();
@@ -167,6 +168,7 @@ export async function handleQuery(req: Request): Promise<Response> {
       total: result.total,
       warnings: [...parseWarnings, ...result.warnings],
       definition: serializeDefinition(definition),
+      mtime: baseStat.mtimeMs,
     });
   } catch (err) {
     if (err instanceof PathError) return json({ error: err.message }, 400);
@@ -181,14 +183,19 @@ export async function handleQuery(req: Request): Promise<Response> {
 // ── Property editing endpoint ────────────────────────────────────────────────
 
 export async function handleUpdateProperty(req: Request): Promise<Response> {
-  let body: { notePath?: string; property?: string; value?: unknown };
+  let body: {
+    notePath?: string;
+    property?: string;
+    value?: unknown;
+    mtime?: number;
+  };
   try {
-    body = (await req.json()) as { notePath?: string; property?: string; value?: unknown };
+    body = (await req.json()) as typeof body;
   } catch {
     return json({ error: "Invalid JSON" }, 400);
   }
 
-  const { notePath, property, value } = body;
+  const { notePath, property, value, mtime: clientMtime } = body;
   if (!notePath || !property) {
     return json({ error: "Missing notePath or property" }, 400);
   }
@@ -209,7 +216,6 @@ export async function handleUpdateProperty(req: Request): Promise<Response> {
 
     // check mtime for conflict detection
     const currentStat = await stat(abs);
-    const clientMtime = body["mtime" as keyof typeof body];
     if (typeof clientMtime === "number" && currentStat.mtimeMs > clientMtime) {
       return json({
         error: "File has been modified since it was loaded. Please reload.",
@@ -226,18 +232,129 @@ export async function handleUpdateProperty(req: Request): Promise<Response> {
     await writeFile(tmp, updatedContent, "utf-8");
     await rename(tmp, abs);
 
-    // re-index this note
+    // re-index this note (single-file, not a full vault rescan)
     const idx = await getVaultIndex();
-    // trigger re-read by removing and rebuilding
-    idx.removeNote(notePath);
-    // the file watcher should pick it up, but force re-index
-    await idx.build();
+    await idx.reindexNote(notePath);
 
-    return json({ ok: true });
+    const updated = idx.getNote(notePath);
+    return json({ ok: true, mtime: updated?.mtime });
   } catch (err) {
     if (err instanceof PathError) return json({ error: err.message }, 400);
     console.error("update property error:", err);
     return json({ error: "Update failed" }, 500);
+  }
+}
+
+// ── Base definition mutation endpoint ────────────────────────────────────────
+
+export async function handleMutateBase(req: Request): Promise<Response> {
+  let body: { basePath?: string; mutation?: Mutation; mtime?: number };
+  try {
+    body = (await req.json()) as typeof body;
+  } catch {
+    return json({ error: "Invalid JSON" }, 400);
+  }
+
+  const { basePath, mutation, mtime: clientMtime } = body;
+  if (!basePath) return json({ error: "Missing basePath" }, 400);
+  if (!mutation || typeof mutation !== "object" || !("type" in mutation)) {
+    return json({ error: "Missing or invalid mutation" }, 400);
+  }
+
+  try {
+    const abs = await safeResolveStat(config.vaultPath, basePath, "write");
+    const ext = extname(abs).toLowerCase();
+    if (ext !== ".base") return json({ error: "Not a .base file" }, 400);
+
+    const content = await readFile(abs, "utf-8");
+    const currentStat = await stat(abs);
+    if (typeof clientMtime === "number" && currentStat.mtimeMs > clientMtime) {
+      return json(
+        {
+          error: "Base file was modified externally. Please reload.",
+          conflict: true,
+          currentMtime: currentStat.mtimeMs,
+        },
+        409
+      );
+    }
+
+    const result = applyMutation(content, mutation);
+    const tmp = `${abs}.tmp-${process.pid}`;
+    await writeFile(tmp, result.yaml, "utf-8");
+    await rename(tmp, abs);
+
+    const newStat = await stat(abs);
+    const { definition, warnings } = parseBaseYaml(result.yaml);
+
+    return json({
+      ok: true,
+      changed: result.changed,
+      yaml: result.yaml,
+      mtime: newStat.mtimeMs,
+      definition: serializeDefinition(definition),
+      warnings,
+    });
+  } catch (err) {
+    if (err instanceof PathError) return json({ error: err.message }, 400);
+    const msg = err instanceof Error ? err.message : "Mutation failed";
+    const isNotFound = (err as NodeJS.ErrnoException).code === "ENOENT";
+    if (isNotFound) return json({ error: "Base file not found" }, 404);
+    return json({ error: msg }, 400);
+  }
+}
+
+// ── Inline YAML query (for embedded bases in markdown) ───────────────────────
+
+export async function handleQueryInline(req: Request): Promise<Response> {
+  let body: { yaml?: string; viewIndex?: number };
+  try {
+    body = (await req.json()) as typeof body;
+  } catch {
+    return json({ error: "Invalid JSON" }, 400);
+  }
+
+  const yaml = body.yaml ?? "";
+  const viewIndex = typeof body.viewIndex === "number" ? body.viewIndex : 0;
+  if (!yaml.trim()) return json({ error: "Missing yaml" }, 400);
+
+  try {
+    const { definition, warnings: parseWarnings } = parseBaseYaml(yaml);
+    const index = await getVaultIndex();
+    const allNotes = index.getAllNotes();
+    const result = executeQuery(allNotes, definition, viewIndex);
+
+    const notesWithFormulas = result.notes.map((note) => {
+      const formulaValues = definition.formulas
+        ? evaluateFormulas(note, definition.formulas)
+        : {};
+      return { ...note, formulaValues };
+    });
+
+    const view = definition.views?.[viewIndex];
+    let grouped: Record<string, typeof notesWithFormulas> | null = null;
+    if (view?.group) {
+      const groups = groupNotes(result.notes, view.group);
+      grouped = {};
+      for (const [key, notes] of groups.entries()) {
+        grouped[key] = notes.map((note) => {
+          const formulaValues = definition.formulas
+            ? evaluateFormulas(note, definition.formulas)
+            : {};
+          return { ...note, formulaValues };
+        });
+      }
+    }
+
+    return json({
+      notes: grouped ?? notesWithFormulas,
+      total: result.total,
+      warnings: [...parseWarnings, ...result.warnings],
+      definition: serializeDefinition(definition),
+    });
+  } catch (err) {
+    console.error("inline query error:", err);
+    return json({ error: "Query failed" }, 500);
   }
 }
 

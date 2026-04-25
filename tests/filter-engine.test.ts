@@ -244,6 +244,38 @@ describe("executeQuery", () => {
     expect(result.notes).toHaveLength(4); // all included when unsupported
   });
 
+  it("OR with an unsupported branch still matches when a later branch matches", () => {
+    // Regression: previous code returned the unsupported result on the first
+    // unsupported OR branch, even when a later branch would have matched.
+    const base = makeBase({
+      filters: {
+        or: [
+          { property: 'file.hasLink("X")', operator: "eq" }, // unsupported
+          { property: "status", operator: "eq", value: "active" },
+        ],
+      },
+    });
+    const result = executeQuery(notes, base);
+    // Two notes have status=active and they should be included regardless of
+    // the unsupported branch.
+    expect(result.notes.filter((n) => n.frontmatter["status"] === "active")).toHaveLength(2);
+  });
+
+  it("AND with an unsupported branch still excludes when a later branch is false", () => {
+    // Regression: previous code returned unsupported on the first unsupported
+    // AND branch, even when a later branch was definitively false.
+    const base = makeBase({
+      filters: {
+        and: [
+          { property: 'file.hasLink("X")', operator: "eq" }, // unsupported
+          { property: "status", operator: "eq", value: "nonexistent" },
+        ],
+      },
+    });
+    const result = executeQuery(notes, base);
+    expect(result.notes).toHaveLength(0);
+  });
+
   it("combines base-level and view-level filters", () => {
     const base = makeBase({
       filters: {
