@@ -21,7 +21,7 @@ async function buildTree(dir: string, root: string): Promise<TreeNode[]> {
     if (entry.isDirectory()) {
       const children = await buildTree(full, root);
       nodes.push({ name: entry.name, path: relPath, type: "directory", children });
-    } else if (entry.isFile() && extname(entry.name).toLowerCase() === ".md") {
+    } else if (entry.isFile() && [".md", ".base"].includes(extname(entry.name).toLowerCase())) {
       nodes.push({ name: entry.name, path: relPath, type: "file" });
     }
   }

@@ -18,6 +18,16 @@ import {
 import { handleCreateFolder } from "./routes/folder.ts";
 import { handleSearch } from "./routes/search.ts";
 import { handleResolveWikilink } from "./routes/wikilink.ts";
+import {
+  handleGetIndex,
+  handleGetNoteMeta,
+  handleRebuildIndex,
+  handleGetBase,
+  handleListBases,
+  handleQuery,
+  handleUpdateProperty,
+  getVaultIndex,
+} from "./routes/bases.ts";
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -85,7 +95,11 @@ function notFound(): Response {
 
 console.log(`Building wikilink index for vault: ${config.vaultPath}`);
 await buildIndex(config.vaultPath);
-console.log("Index ready.");
+console.log("Wikilink index ready.");
+
+console.log("Building vault index for Bases...");
+await getVaultIndex();
+console.log("Vault index ready.");
 
 const server = Bun.serve({
   port: config.port,
@@ -116,6 +130,15 @@ const server = Bun.serve({
       if (method === "POST" && path === "/api/folder/create") return handleCreateFolder(req);
       if (method === "GET" && path === "/api/search") return handleSearch(req);
       if (method === "GET" && path === "/api/resolve") return handleResolveWikilink(req);
+
+      // Bases endpoints
+      if (method === "GET" && path === "/api/bases/index") return handleGetIndex();
+      if (method === "GET" && path === "/api/bases/note") return handleGetNoteMeta(req);
+      if (method === "POST" && path === "/api/bases/rebuild") return handleRebuildIndex();
+      if (method === "GET" && path === "/api/bases/base") return handleGetBase(req);
+      if (method === "GET" && path === "/api/bases/list") return handleListBases();
+      if (method === "GET" && path === "/api/bases/query") return handleQuery(req);
+      if (method === "POST" && path === "/api/bases/property") return handleUpdateProperty(req);
 
       return notFound();
     }
