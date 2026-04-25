@@ -10,6 +10,7 @@ import { queryBase, updateProperty } from "./base-api.ts";
 export interface BaseTableCallbacks {
   onOpenNote: (path: string) => void;
   onRefresh: () => void;
+  onToggleSource?: () => void;
 }
 
 interface SortState {
@@ -21,8 +22,31 @@ export function createBaseTableView(
   basePath: string,
   callbacks: BaseTableCallbacks
 ): { el: HTMLElement; refresh: () => Promise<void> } {
+  const wrapper = document.createElement("div");
+  wrapper.className = "base-view-wrapper";
+
+  // Persistent toolbar — not wiped on re-render
+  const toolbar = document.createElement("div");
+  toolbar.className = "base-toolbar";
+  if (callbacks.onToggleSource) {
+    const sourceBtn = document.createElement("button");
+    sourceBtn.className = "base-source-btn icon-btn";
+    sourceBtn.title = "Edit source YAML (Ctrl+E)";
+    sourceBtn.innerHTML = `
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="16 18 22 12 16 6"/>
+        <polyline points="8 6 2 12 8 18"/>
+      </svg>
+      Source
+    `;
+    sourceBtn.addEventListener("click", () => callbacks.onToggleSource?.());
+    toolbar.appendChild(sourceBtn);
+  }
+  wrapper.appendChild(toolbar);
+
   const container = document.createElement("div");
   container.className = "base-view";
+  wrapper.appendChild(container);
 
   let currentViewIndex = 0;
   let currentSort: SortState | null = null;
@@ -131,7 +155,7 @@ export function createBaseTableView(
   }
 
   void refresh();
-  return { el: container, refresh };
+  return { el: wrapper, refresh };
 }
 
 function resolveColumns(
