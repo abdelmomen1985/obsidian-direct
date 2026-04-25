@@ -79,7 +79,7 @@ function processCallouts(html: string): string {
 }
 
 // ── Mermaid support ─────────────────────────────────────────────────────────
-let mermaidLoaded = false;
+let mermaidPromise: Promise<void> | null = null;
 let mermaidInitialized = false;
 
 interface MermaidApi {
@@ -93,12 +93,11 @@ function getMermaid(): MermaidApi | undefined {
 }
 
 async function ensureMermaid(): Promise<void> {
-  if (mermaidLoaded) return;
-  mermaidLoaded = true;
-  const script = document.createElement("script");
-  script.src = "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js";
-  script.async = true;
-  return new Promise((resolve) => {
+  if (mermaidPromise) return mermaidPromise;
+  mermaidPromise = new Promise((resolve) => {
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js";
+    script.async = true;
     script.onload = () => {
       const mermaid = getMermaid();
       if (!mermaidInitialized && mermaid) {
@@ -112,11 +111,12 @@ async function ensureMermaid(): Promise<void> {
       resolve();
     };
     script.onerror = () => {
-      mermaidLoaded = false;
+      mermaidPromise = null;
       resolve();
     };
     document.head.appendChild(script);
   });
+  return mermaidPromise;
 }
 
 export async function renderMermaidBlocks(container: HTMLElement): Promise<void> {
@@ -216,7 +216,7 @@ export function renderMarkdown(markdown: string): MarkdownResult {
   const raw = marked.parse(stripped) as string;
   const withLinks = processWikilinks(raw);
   const withCallouts = processCallouts(withLinks);
-  const sourceLines = stripped.split("\n");
+  const sourceLines = markdown.split("\n");
   const withCheckboxes = processTaskCheckboxes(withCallouts, sourceLines);
   const html = DOMPurify.sanitize(withCheckboxes, {
     ADD_ATTR: ["data-wikilink", "type", "disabled", "checked", "data-line", "style"],
