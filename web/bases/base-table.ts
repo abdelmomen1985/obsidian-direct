@@ -353,9 +353,9 @@ function getCellValue(note: IndexedNote, column: string): unknown {
     case "file.ext":
       return note.ext;
     case "file.mtime":
-      return new Date(note.mtime).toLocaleString();
+      return note.mtime;
     case "file.ctime":
-      return new Date(note.ctime).toLocaleString();
+      return note.ctime;
     case "file.tags":
     case "tags":
       return note.tags.join(", ");
@@ -369,6 +369,7 @@ function formatValue(value: unknown): string {
   if (Array.isArray(value)) return value.join(", ");
   if (typeof value === "boolean") return value ? "true" : "false";
   if (value instanceof Date) return value.toLocaleDateString();
+  if (typeof value === "number" && value > 1e12) return new Date(value).toLocaleString();
   return String(value);
 }
 

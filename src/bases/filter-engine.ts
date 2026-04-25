@@ -207,6 +207,7 @@ function evaluateFileHelper(
     "file.ext": note.ext,
     "file.mtime": note.mtime,
     "file.ctime": note.ctime,
+    "file.tags": note.tags,
   };
 
   if (property in fileProps) {
