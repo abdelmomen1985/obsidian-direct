@@ -154,6 +154,41 @@ const markdownHighlight = HighlightStyle.define([
   { tag: tags.contentSeparator, color: "var(--ob-border)" },
 ]);
 
+// Wrap the primary selection with the given prefix/suffix. If there's no
+// selection, inserts `prefix+suffix` and places the cursor between them.
+function wrapSelection(view: EditorView, prefix: string, suffix: string = prefix): boolean {
+  const { state } = view;
+  const range = state.selection.main;
+  const selected = state.doc.sliceString(range.from, range.to);
+  const insert = prefix + selected + suffix;
+  const changes = { from: range.from, to: range.to, insert };
+  const newAnchor = selected.length === 0
+    ? range.from + prefix.length
+    : range.from + insert.length;
+  view.dispatch({
+    changes,
+    selection: selected.length === 0
+      ? { anchor: newAnchor }
+      : { anchor: range.from, head: range.from + insert.length },
+    scrollIntoView: true,
+    userEvent: "input",
+  });
+  view.focus();
+  return true;
+}
+
+export function boldSelection(view: EditorView): boolean {
+  return wrapSelection(view, "**");
+}
+
+export function italicSelection(view: EditorView): boolean {
+  return wrapSelection(view, "*");
+}
+
+export function wikilinkSelection(view: EditorView): boolean {
+  return wrapSelection(view, "[[", "]]");
+}
+
 function baseExtensions(onChange: (doc: string) => void, onSave: () => void): Extension[] {
   return [
     highlightSpecialChars(),
@@ -175,6 +210,9 @@ function baseExtensions(onChange: (doc: string) => void, onSave: () => void): Ex
           return true;
         },
       },
+      { key: "Mod-b", run: (view) => boldSelection(view) },
+      { key: "Mod-i", run: (view) => italicSelection(view) },
+      { key: "Mod-l", run: (view) => wikilinkSelection(view) },
     ]),
     EditorView.updateListener.of((update) => {
       if (update.docChanged) onChange(update.state.doc.toString());
