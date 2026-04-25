@@ -801,14 +801,33 @@
   /* ── Callout blocks ─────────────────────────────────────────────────── */
   .callout {
     @apply rounded-md my-4;
-    border-left: 4px solid var(--callout-color, var(--ob-accent));
-    background: color-mix(in oklch, var(--callout-color, var(--ob-accent)) 8%, var(--ob-bg2));
+    --callout-color: var(--ob-accent);
+    border-left: 4px solid var(--callout-color);
+    background: color-mix(in oklch, var(--callout-color) 8%, var(--ob-bg2));
     overflow: hidden;
   }
+  .callout[data-callout-type="tip"],
+  .callout[data-callout-type="hint"] { --callout-color: var(--ob-green); }
+  .callout[data-callout-type="warning"],
+  .callout[data-callout-type="caution"] { --callout-color: var(--ob-yellow); }
+  .callout[data-callout-type="danger"],
+  .callout[data-callout-type="error"] { --callout-color: var(--ob-red); }
+  .callout[data-callout-type="success"],
+  .callout[data-callout-type="check"],
+  .callout[data-callout-type="done"] { --callout-color: var(--ob-green); }
+  .callout[data-callout-type="question"],
+  .callout[data-callout-type="help"],
+  .callout[data-callout-type="faq"] { --callout-color: var(--ob-yellow); }
+  .callout[data-callout-type="failure"],
+  .callout[data-callout-type="fail"],
+  .callout[data-callout-type="missing"],
+  .callout[data-callout-type="bug"] { --callout-color: var(--ob-red); }
+  .callout[data-callout-type="quote"],
+  .callout[data-callout-type="cite"] { --callout-color: var(--ob-muted); }
   .callout .callout-title {
     @apply font-medium flex items-center gap-2;
     padding: 10px 14px;
-    color: var(--callout-color, var(--ob-accent));
+    color: var(--callout-color);
     font-size: 14px;
   }
   .callout .callout-icon { font-size: 16px; flex-shrink: 0; }

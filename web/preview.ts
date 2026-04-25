@@ -62,7 +62,7 @@ function processCallouts(html: string): string {
       const bodyContent = ((body as string) + (rest as string)).trim();
 
       if (isFoldable) {
-        return `<div class="callout callout-${typeLower}" style="--callout-color: ${meta.color}">
+        return `<div class="callout callout-${typeLower}" data-callout-type="${typeLower}">
           <details${isOpen ? " open" : ""}>
             <summary class="callout-title"><span class="callout-icon">${meta.icon}</span> ${escapeHtml(displayTitle)}</summary>
             <div class="callout-body">${bodyContent}</div>
@@ -70,7 +70,7 @@ function processCallouts(html: string): string {
         </div>`;
       }
 
-      return `<div class="callout callout-${typeLower}" style="--callout-color: ${meta.color}">
+      return `<div class="callout callout-${typeLower}" data-callout-type="${typeLower}">
         <div class="callout-title"><span class="callout-icon">${meta.icon}</span> ${escapeHtml(displayTitle)}</div>
         <div class="callout-body">${bodyContent}</div>
       </div>`;
@@ -178,11 +178,16 @@ function processTaskCheckboxes(html: string, sourceLines: string[]): string {
   );
 }
 
-function findTaskLine(lines: string[], targetIdx: number, isChecked: boolean): number {
+function findTaskLine(lines: string[], targetIdx: number, _isChecked: boolean): number {
   let found = 0;
-  const pattern = isChecked ? /- \[x\]/i : /- \[ \]/;
+  let inCodeBlock = false;
+  let inFrontmatter = false;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i] ?? "";
+    if (i === 0 && line === "---") { inFrontmatter = true; continue; }
+    if (inFrontmatter) { if (line === "---") inFrontmatter = false; continue; }
+    if (/^```/.test(line)) { inCodeBlock = !inCodeBlock; continue; }
+    if (inCodeBlock) continue;
     if (/- \[[ xX]\]/.test(line)) {
       if (found === targetIdx) return i;
       found++;
@@ -219,11 +224,11 @@ export function renderMarkdown(markdown: string): MarkdownResult {
   const sourceLines = markdown.split("\n");
   const withCheckboxes = processTaskCheckboxes(withCallouts, sourceLines);
   const html = DOMPurify.sanitize(withCheckboxes, {
-    ADD_ATTR: ["data-wikilink", "type", "disabled", "checked", "data-line", "style"],
+    ADD_ATTR: ["data-wikilink", "type", "disabled", "checked", "data-line", "data-callout-type"],
     ADD_TAGS: ["a", "input", "details", "summary"],
     ALLOWED_ATTR: [
       "href", "class", "data-wikilink", "src", "alt", "title", "target",
-      "rel", "type", "disabled", "checked", "data-line", "open", "style",
+      "rel", "type", "disabled", "checked", "data-line", "open", "data-callout-type",
     ],
   });
   return { html, isRtl };
