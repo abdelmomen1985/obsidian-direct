@@ -104,7 +104,7 @@ export function serializeFrontmatter(
   }
 
   const yaml = doc.toString().trimEnd();
-  if (!yaml || yaml === "{}" || yaml === "{}\\n") {
+  if (!yaml || yaml === "{}") {
     return body;
   }
   return `---\n${yaml}\n---\n${body}`;

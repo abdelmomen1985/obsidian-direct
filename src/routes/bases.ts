@@ -129,6 +129,8 @@ export async function handleQuery(req: Request): Promise<Response> {
 
   try {
     const abs = safeResolve(config.vaultPath, basePath);
+    const ext = extname(abs).toLowerCase();
+    if (ext !== ".base") return json({ error: "Not a .base file" }, 400);
     const content = await readFile(abs, "utf-8");
     const { definition, warnings: parseWarnings } = parseBaseYaml(content);
 
