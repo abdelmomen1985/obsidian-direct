@@ -41,7 +41,7 @@ export class VaultIndex {
         (_event, filename) => {
           if (!filename) return;
           const fn = filename.toString();
-          if (fn.startsWith(".")) return;
+          if (fn.startsWith(".") || fn.includes("/.") || fn.includes("\\.")) return;
           if (extname(fn).toLowerCase() !== ".md") return;
           void this.reindexFile(fn);
         }

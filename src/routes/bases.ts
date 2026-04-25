@@ -2,7 +2,7 @@ import { readFile, writeFile, rename, stat } from "fs/promises";
 import { readdir } from "fs/promises";
 import { join, extname, relative, dirname } from "path";
 import { config } from "../config.ts";
-import { safeResolve } from "../paths.ts";
+import { safeResolveStat } from "../paths.ts";
 import { PathError } from "../paths.ts";
 import { VaultIndex } from "../bases/vault-index.ts";
 import { parseBaseYaml } from "../bases/base-parser.ts";
@@ -70,7 +70,7 @@ export async function handleGetBase(req: Request): Promise<Response> {
   if (!relPath) return json({ error: "Missing path" }, 400);
 
   try {
-    const abs = safeResolve(config.vaultPath, relPath);
+    const abs = await safeResolveStat(config.vaultPath, relPath, "read");
     const ext = extname(abs).toLowerCase();
     if (ext !== ".base") return json({ error: "Not a .base file" }, 400);
 
@@ -128,7 +128,7 @@ export async function handleQuery(req: Request): Promise<Response> {
   if (!basePath) return json({ error: "Missing base path" }, 400);
 
   try {
-    const abs = safeResolve(config.vaultPath, basePath);
+    const abs = await safeResolveStat(config.vaultPath, basePath, "read");
     const ext = extname(abs).toLowerCase();
     if (ext !== ".base") return json({ error: "Not a .base file" }, 400);
     const content = await readFile(abs, "utf-8");
@@ -194,9 +194,7 @@ export async function handleUpdateProperty(req: Request): Promise<Response> {
   }
 
   try {
-    const abs = safeResolve(config.vaultPath, notePath);
-    const ext = extname(abs).toLowerCase();
-    if (ext !== ".md") return json({ error: "Only .md files may be edited" }, 400);
+    const abs = await safeResolveStat(config.vaultPath, notePath, "write");
 
     // read current content
     let content: string;
