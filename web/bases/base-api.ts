@@ -139,6 +139,12 @@ export interface PropertyPatch {
   hidden?: boolean | null;
 }
 
+export interface FilterPatch {
+  property: string;
+  operator: string;
+  value?: unknown;
+}
+
 export type BaseMutation =
   | { type: "addProperty"; property: PropertyPatch }
   | { type: "updateProperty"; oldName: string; property: PropertyPatch }
@@ -147,7 +153,11 @@ export type BaseMutation =
   | { type: "removeColumn"; viewIndex: number; column: string }
   | { type: "reorderColumns"; viewIndex: number; columns: string[] }
   | { type: "addView"; view: { name: string; type?: string } }
-  | { type: "removeView"; viewIndex: number };
+  | { type: "removeView"; viewIndex: number }
+  | { type: "addFilter"; filter: FilterPatch; scope?: "base" | "view"; viewIndex?: number }
+  | { type: "removeFilter"; filterIndex: number; scope?: "base" | "view"; viewIndex?: number }
+  | { type: "updateFilter"; filterIndex: number; filter: FilterPatch; scope?: "base" | "view"; viewIndex?: number }
+  | { type: "clearFilters"; scope?: "base" | "view"; viewIndex?: number };
 
 export interface MutationResponse {
   ok: true;

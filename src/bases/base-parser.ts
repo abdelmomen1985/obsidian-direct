@@ -97,37 +97,25 @@ function parseFilterGroup(
   const group: FilterGroup = {};
 
   if ("and" in obj && Array.isArray(obj["and"])) {
-    group.and = (obj["and"] as unknown[])
-      .filter((item): item is Record<string, unknown> =>
-        item !== null && typeof item === "object" && !Array.isArray(item)
-      )
-      .map((item) => {
-        if ("property" in item && "operator" in item) {
-          return parseFilterCondition(item, warnings);
-        }
-        return parseFilterGroup(item, warnings);
-      });
+    group.and = parseFilterList(obj["and"] as unknown[], warnings);
   }
 
   if ("or" in obj && Array.isArray(obj["or"])) {
-    group.or = (obj["or"] as unknown[])
-      .filter((item): item is Record<string, unknown> =>
-        item !== null && typeof item === "object" && !Array.isArray(item)
-      )
-      .map((item) => {
-        if ("property" in item && "operator" in item) {
-          return parseFilterCondition(item, warnings);
-        }
-        return parseFilterGroup(item, warnings);
-      });
+    group.or = parseFilterList(obj["or"] as unknown[], warnings);
   }
 
-  if ("not" in obj && typeof obj["not"] === "object" && obj["not"] !== null) {
-    const notObj = obj["not"] as Record<string, unknown>;
-    if ("property" in notObj && "operator" in notObj) {
-      group.not = parseFilterCondition(notObj, warnings);
-    } else {
-      group.not = parseFilterGroup(notObj, warnings);
+  if ("not" in obj) {
+    const notRaw = obj["not"];
+    if (typeof notRaw === "string") {
+      const parsed = parseStringFilter(notRaw, warnings);
+      if (parsed) group.not = parsed;
+    } else if (typeof notRaw === "object" && notRaw !== null) {
+      const notObj = notRaw as Record<string, unknown>;
+      if ("property" in notObj && "operator" in notObj) {
+        group.not = parseFilterCondition(notObj, warnings);
+      } else {
+        group.not = parseFilterGroup(notObj, warnings);
+      }
     }
   }
 
@@ -137,6 +125,77 @@ function parseFilterGroup(
   }
 
   return group;
+}
+
+function parseFilterList(
+  items: unknown[],
+  warnings: string[]
+): Array<FilterGroup | FilterCondition> {
+  const result: Array<FilterGroup | FilterCondition> = [];
+  for (const item of items) {
+    if (typeof item === "string") {
+      const parsed = parseStringFilter(item, warnings);
+      if (parsed) result.push(parsed);
+      continue;
+    }
+    if (item === null || typeof item !== "object" || Array.isArray(item)) continue;
+    const obj = item as Record<string, unknown>;
+    if ("property" in obj && "operator" in obj) {
+      result.push(parseFilterCondition(obj, warnings));
+    } else {
+      result.push(parseFilterGroup(obj, warnings));
+    }
+  }
+  return result;
+}
+
+/**
+ * Parse Obsidian Bases string-form filter expressions:
+ *   file.inFolder("Some/Folder")
+ *   file.hasTag("mytag")
+ *   file.hasLink("Note")
+ *   property operator value
+ *   property operator "quoted value"
+ */
+function parseStringFilter(
+  expr: string,
+  warnings: string[]
+): FilterCondition | null {
+  const trimmed = expr.trim();
+  if (!trimmed) return null;
+
+  // file.inFolder("..."), file.hasTag("..."), file.hasLink("...")
+  const funcMatch = /^(file\.\w+\(["'].+?["']\))$/.exec(trimmed);
+  if (funcMatch) {
+    return { property: funcMatch[1]!, operator: "eq", value: true };
+  }
+
+  // "property operator value" form: split on first whitespace-surrounded operator
+  const opPattern = /^(.+?)\s+(eq|neq|gt|lt|gte|lte|contains|exists|empty)\s*(.*)$/;
+  const opMatch = opPattern.exec(trimmed);
+  if (opMatch) {
+    const property = opMatch[1]!.trim();
+    const rawOp = opMatch[2]!;
+    const operator: FilterOperator = VALID_OPERATORS.includes(rawOp as FilterOperator)
+      ? (rawOp as FilterOperator)
+      : "eq";
+    let value: unknown = opMatch[3]?.trim();
+    if (typeof value === "string") {
+      // strip surrounding quotes
+      const strMatch = /^["'](.*)["']$/.exec(value);
+      if (strMatch) value = strMatch[1];
+      // try numeric conversion
+      else if (value !== "" && !isNaN(Number(value))) value = Number(value);
+      // boolean
+      else if (value === "true") value = true;
+      else if (value === "false") value = false;
+    }
+    if (operator === "exists" || operator === "empty") value = undefined;
+    return { property, operator, value };
+  }
+
+  warnings.push(`Unrecognized string filter expression: "${trimmed}"`);
+  return null;
 }
 
 function parseFilterCondition(
