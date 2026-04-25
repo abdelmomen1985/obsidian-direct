@@ -4,15 +4,20 @@ let lastTreeJson = "";
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
 // Callbacks set by main.ts so tree can notify the app of file operations
-let onDeleteCallback: ((path: string) => void) | null = null;
-let onMoveCallback: ((oldPath: string, newPath: string) => void) | null = null;
-
-export function setTreeCallbacks(callbacks: {
+interface TreeCallbacks {
   onDelete?: (path: string) => void;
   onMove?: (oldPath: string, newPath: string) => void;
-}): void {
-  if (callbacks.onDelete) onDeleteCallback = callbacks.onDelete;
-  if (callbacks.onMove) onMoveCallback = callbacks.onMove;
+  onRename?: (path: string) => void;
+  onDuplicate?: (path: string) => void;
+  onMovePrompt?: (path: string) => void;
+  onNewFileHere?: (dirPath: string) => void;
+  onNewFolderHere?: (dirPath: string) => void;
+}
+
+const callbacks: TreeCallbacks = {};
+
+export function setTreeCallbacks(cbs: TreeCallbacks): void {
+  Object.assign(callbacks, cbs);
 }
 
 export function renderTree(
@@ -24,8 +29,10 @@ export function renderTree(
 
   getTree()
     .then((nodes) => {
+      const openPaths = getOpenDirPaths(container);
       container.innerHTML = "";
       container.appendChild(buildTreeEl(nodes, onSelect, activePathRef));
+      restoreOpenDirPaths(container, openPaths);
       lastTreeJson = JSON.stringify(nodes);
     })
     .catch(() => {
@@ -80,7 +87,13 @@ function removeContextMenu(): void {
   }
 }
 
-function showContextMenu(x: number, y: number, filePath: string): void {
+interface MenuItem {
+  label: string;
+  action: () => void | Promise<void>;
+  danger?: boolean;
+}
+
+function showMenu(x: number, y: number, items: MenuItem[]): void {
   removeContextMenu();
 
   const menu = document.createElement("div");
@@ -88,29 +101,52 @@ function showContextMenu(x: number, y: number, filePath: string): void {
   menu.style.left = `${x}px`;
   menu.style.top = `${y}px`;
 
-  const deleteItem = document.createElement("button");
-  deleteItem.className = "context-menu-item context-menu-item--danger";
-  deleteItem.textContent = "Delete file";
-  deleteItem.addEventListener("click", async () => {
-    removeContextMenu();
-    const name = filePath.split("/").pop() ?? filePath;
-    if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
-    try {
-      await deleteFile(filePath);
-      onDeleteCallback?.(filePath);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Delete failed");
-    }
-  });
+  for (const it of items) {
+    const btn = document.createElement("button");
+    btn.className = "context-menu-item" + (it.danger ? " context-menu-item--danger" : "");
+    btn.textContent = it.label;
+    btn.addEventListener("click", () => {
+      removeContextMenu();
+      void it.action();
+    });
+    menu.appendChild(btn);
+  }
 
-  menu.appendChild(deleteItem);
   document.body.appendChild(menu);
   activeContextMenu = menu;
 
-  // Reposition if it overflows the viewport
   const rect = menu.getBoundingClientRect();
   if (rect.right > window.innerWidth) menu.style.left = `${x - rect.width}px`;
   if (rect.bottom > window.innerHeight) menu.style.top = `${y - rect.height}px`;
+}
+
+function showFileContextMenu(x: number, y: number, filePath: string): void {
+  showMenu(x, y, [
+    { label: "Rename…", action: () => callbacks.onRename?.(filePath) },
+    { label: "Duplicate", action: () => callbacks.onDuplicate?.(filePath) },
+    { label: "Move to…", action: () => callbacks.onMovePrompt?.(filePath) },
+    {
+      label: "Delete",
+      danger: true,
+      action: async () => {
+        const name = filePath.split("/").pop() ?? filePath;
+        if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+        try {
+          await deleteFile(filePath);
+          callbacks.onDelete?.(filePath);
+        } catch (err) {
+          alert(err instanceof Error ? err.message : "Delete failed");
+        }
+      },
+    },
+  ]);
+}
+
+function showFolderContextMenu(x: number, y: number, dirPath: string): void {
+  showMenu(x, y, [
+    { label: "New file here", action: () => callbacks.onNewFileHere?.(dirPath) },
+    { label: "New folder here", action: () => callbacks.onNewFolderHere?.(dirPath) },
+  ]);
 }
 
 document.addEventListener("click", removeContextMenu);
@@ -141,13 +177,18 @@ function buildTreeEl(
       const summary = document.createElement("summary");
       summary.className = "tree-dir";
       summary.textContent = node.name;
+      summary.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        showFolderContextMenu(e.clientX, e.clientY, node.path);
+      });
       details.appendChild(summary);
 
       if (node.children && node.children.length > 0) {
         details.appendChild(buildTreeEl(node.children, onSelect, activePathRef));
       }
 
-      // Drop target: highlight on dragover, move on drop
+      // Drop target
       details.addEventListener("dragover", (e) => {
         if (!dragPath) return;
         e.preventDefault();
@@ -168,7 +209,7 @@ function buildTreeEl(
         dragPath = null;
         try {
           const newPath = await moveFile(src, node.path);
-          onMoveCallback?.(src, newPath);
+          callbacks.onMove?.(src, newPath);
         } catch (err) {
           alert(err instanceof Error ? err.message : "Move failed");
         }
@@ -198,7 +239,7 @@ function buildTreeEl(
 
       btn.addEventListener("contextmenu", (e) => {
         e.preventDefault();
-        showContextMenu(e.clientX, e.clientY, node.path);
+        showFileContextMenu(e.clientX, e.clientY, node.path);
       });
 
       btn.addEventListener("dragstart", (e) => {

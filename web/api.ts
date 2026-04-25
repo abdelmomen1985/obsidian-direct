@@ -99,3 +99,59 @@ export async function moveFile(path: string, destDir: string): Promise<string> {
   const data = await res.json() as { newPath: string };
   return data.newPath;
 }
+
+export async function createFile(path: string, content = ""): Promise<string> {
+  const res = await apiFetch("/api/file/create", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path, content }),
+  });
+  if (!res.ok) {
+    const data = await res.json() as { error?: string };
+    throw new Error(data.error ?? "Create failed");
+  }
+  const data = await res.json() as { path: string };
+  return data.path;
+}
+
+export async function copyFile(srcPath: string, destPath?: string): Promise<string> {
+  const res = await apiFetch("/api/file/copy", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ srcPath, destPath }),
+  });
+  if (!res.ok) {
+    const data = await res.json() as { error?: string };
+    throw new Error(data.error ?? "Copy failed");
+  }
+  const data = await res.json() as { path: string };
+  return data.path;
+}
+
+export async function renameFile(oldPath: string, newPath: string): Promise<string> {
+  const res = await apiFetch("/api/file/rename", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ oldPath, newPath }),
+  });
+  if (!res.ok) {
+    const data = await res.json() as { error?: string };
+    throw new Error(data.error ?? "Rename failed");
+  }
+  const data = await res.json() as { path: string };
+  return data.path;
+}
+
+export async function createFolder(path: string): Promise<string> {
+  const res = await apiFetch("/api/folder/create", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+  if (!res.ok) {
+    const data = await res.json() as { error?: string };
+    throw new Error(data.error ?? "Create folder failed");
+  }
+  const data = await res.json() as { path: string };
+  return data.path;
+}

@@ -82,19 +82,35 @@
     @apply bg-ob-bg2 border-r border-ob-border flex flex-col overflow-hidden flex-shrink-0;
   }
   .sidebar-header {
-    @apply px-3 py-2 border-b border-ob-border flex-shrink-0 text-ob-muted uppercase tracking-widest;
+    @apply px-3 py-2 border-b border-ob-border flex-shrink-0 text-ob-muted uppercase tracking-widest flex items-center justify-between;
     font-size: 11px;
   }
+  .sidebar-actions { @apply flex items-center gap-1; }
+  .sidebar-icon-btn {
+    @apply flex items-center justify-center text-ob-muted rounded transition-colors duration-100;
+    width: 22px; height: 22px;
+  }
+  .sidebar-icon-btn:hover { @apply bg-ob-surface text-ob-text; }
   .file-tree { @apply overflow-y-auto flex-1 py-1; }
 
   .editor-pane {
     @apply flex-1 overflow-hidden flex flex-col border-r border-ob-border;
   }
   .editor-pane .cm-editor { flex: 1; height: 100%; }
+  .editor-pane.full-width { border-right: none; }
 
   .preview-pane {
     @apply overflow-y-auto bg-ob-bg flex-shrink-0;
     width: 40%;
+  }
+  .preview-pane.full-width { flex: 1; width: auto; }
+
+  /* Word count */
+  .word-count {
+    @apply text-ob-muted;
+    font-size: 11px;
+    min-width: 0;
+    white-space: nowrap;
   }
   .preview-content { @apply p-6 max-w-2xl; }
 
