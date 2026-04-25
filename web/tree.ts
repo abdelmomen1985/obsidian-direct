@@ -25,18 +25,27 @@ export function renderTree(
   onSelect: (path: string) => void,
   activePathRef: { current: string }
 ): void {
-  container.innerHTML = '<div class="tree-loading">Loading…</div>';
+  // Capture open-dir state from the existing DOM before any mutation, so we
+  // can restore it after the rebuild. On first render the tree is empty and
+  // this is just an empty set.
+  const openPaths = getOpenDirPaths(container);
+  const isEmpty = container.children.length === 0;
+  if (isEmpty) {
+    container.innerHTML = '<div class="tree-loading">Loading…</div>';
+  }
 
   getTree()
     .then((nodes) => {
-      const openPaths = getOpenDirPaths(container);
       container.innerHTML = "";
       container.appendChild(buildTreeEl(nodes, onSelect, activePathRef));
       restoreOpenDirPaths(container, openPaths);
+      setActiveInTree(activePathRef.current);
       lastTreeJson = JSON.stringify(nodes);
     })
     .catch(() => {
-      container.innerHTML = '<div class="tree-error">Failed to load files</div>';
+      if (isEmpty) {
+        container.innerHTML = '<div class="tree-error">Failed to load files</div>';
+      }
     });
 }
 
