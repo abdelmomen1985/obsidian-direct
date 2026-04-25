@@ -5,6 +5,9 @@ import type {
   QueryResponse,
   PropertyDefinition,
   PropertyPatch,
+  FilterPatch,
+  FilterCondition,
+  FilterGroup,
   BaseMutation,
 } from "./base-api.ts";
 import { queryBase, updateProperty, mutateBase } from "./base-api.ts";
@@ -70,6 +73,142 @@ export function createBaseTableView(
   addViewBtn.addEventListener("click", () => void promptAddView());
   toolbar.appendChild(addViewBtn);
 
+  const filterBtn = document.createElement("button");
+  filterBtn.className = "base-toolbar-btn icon-btn";
+  filterBtn.title = "Manage filters";
+  filterBtn.innerHTML = `
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+    </svg>
+    Filter
+  `;
+  filterBtn.addEventListener("click", () => toggleFilterPanel());
+  toolbar.appendChild(filterBtn);
+
+  const filterPanel = document.createElement("div");
+  filterPanel.className = "base-filter-panel hidden";
+
+  function toggleFilterPanel(): void {
+    filterPanel.classList.toggle("hidden");
+    if (!filterPanel.classList.contains("hidden") && lastResponse) {
+      renderFilterPanel(lastResponse);
+    }
+  }
+
+  function renderFilterPanel(response: QueryResponse): void {
+    filterPanel.innerHTML = "";
+    const def = response.definition;
+    const view = def.views?.[currentViewIndex];
+
+    // base-level filters section
+    const baseSection = document.createElement("div");
+    baseSection.className = "base-filter-section";
+    const baseTitle = document.createElement("div");
+    baseTitle.className = "base-filter-section-title";
+    baseTitle.textContent = "Base filters";
+    baseSection.appendChild(baseTitle);
+    renderFilterConditions(baseSection, def.filters, "base");
+    filterPanel.appendChild(baseSection);
+
+    // view-level filters section
+    if (view) {
+      const viewSection = document.createElement("div");
+      viewSection.className = "base-filter-section";
+      const viewTitle = document.createElement("div");
+      viewTitle.className = "base-filter-section-title";
+      viewTitle.textContent = `View filters (${view.name})`;
+      viewSection.appendChild(viewTitle);
+      renderFilterConditions(viewSection, view.filter ?? null, "view");
+      filterPanel.appendChild(viewSection);
+    }
+  }
+
+  function renderFilterConditions(
+    container: HTMLElement,
+    filter: FilterGroup | null,
+    scope: "base" | "view"
+  ): void {
+    const conditions = flattenFilterConditions(filter);
+
+    if (conditions.length > 0) {
+      const list = document.createElement("div");
+      list.className = "base-filter-list";
+      for (const tracked of conditions) {
+        const row = document.createElement("div");
+        row.className = "base-filter-row";
+
+        const arrayLabel = document.createElement("span");
+        arrayLabel.className = "base-filter-array-label";
+        arrayLabel.textContent = tracked.arrayKey.toUpperCase();
+        row.appendChild(arrayLabel);
+
+        const label = document.createElement("span");
+        label.className = "base-filter-label";
+        label.textContent = formatFilterCondition(tracked.condition);
+        row.appendChild(label);
+
+        // only and-conditions are editable/removable via mutations
+        if (tracked.arrayKey === "and") {
+          const editBtn = document.createElement("button");
+          editBtn.className = "base-filter-action-btn";
+          editBtn.title = "Edit filter";
+          editBtn.textContent = "✎";
+          editBtn.addEventListener("click", () => {
+            void openFilterDialog(tracked.condition, scope).then((patch) => {
+              if (!patch) return;
+              void applyMutation({
+                type: "updateFilter",
+                filterIndex: tracked.yamlIndex,
+                filter: patch,
+                scope,
+                viewIndex: scope === "view" ? currentViewIndex : undefined,
+              });
+            });
+          });
+          row.appendChild(editBtn);
+
+          const removeBtn = document.createElement("button");
+          removeBtn.className = "base-filter-action-btn base-filter-remove-btn";
+          removeBtn.title = "Remove filter";
+          removeBtn.textContent = "×";
+          removeBtn.addEventListener("click", () => {
+            void applyMutation({
+              type: "removeFilter",
+              filterIndex: tracked.yamlIndex,
+              scope,
+              viewIndex: scope === "view" ? currentViewIndex : undefined,
+            });
+          });
+          row.appendChild(removeBtn);
+        }
+
+        list.appendChild(row);
+      }
+      container.appendChild(list);
+    } else {
+      const empty = document.createElement("div");
+      empty.className = "base-filter-empty";
+      empty.textContent = "No filters";
+      container.appendChild(empty);
+    }
+
+    const addBtn = document.createElement("button");
+    addBtn.className = "base-filter-add-btn";
+    addBtn.textContent = "+ Add filter";
+    addBtn.addEventListener("click", () => {
+      void openFilterDialog(null, scope).then((patch) => {
+        if (!patch) return;
+        void applyMutation({
+          type: "addFilter",
+          filter: patch,
+          scope,
+          viewIndex: scope === "view" ? currentViewIndex : undefined,
+        });
+      });
+    });
+    container.appendChild(addBtn);
+  }
+
   if (callbacks.onToggleSource) {
     const sourceBtn = document.createElement("button");
     sourceBtn.className = "base-source-btn icon-btn";
@@ -85,6 +224,7 @@ export function createBaseTableView(
     toolbar.appendChild(sourceBtn);
   }
   wrapper.appendChild(toolbar);
+  wrapper.appendChild(filterPanel);
 
   const container = document.createElement("div");
   container.className = "base-view";
@@ -168,6 +308,26 @@ export function createBaseTableView(
     const { definition, warnings, total } = response;
     if (typeof response.mtime === "number") baseMtime = response.mtime;
 
+    // update filter badge
+    const view = definition.views?.[currentViewIndex];
+    const baseFilterCount = flattenFilterConditions(definition.filters).length;
+    const viewFilterCount = flattenFilterConditions(view?.filter ?? null).length;
+    const totalFilters = baseFilterCount + viewFilterCount;
+    filterBtn.textContent = "";
+    filterBtn.innerHTML = `
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+      </svg>
+      Filter${totalFilters > 0 ? ` (${totalFilters})` : ""}
+    `;
+    if (totalFilters > 0) filterBtn.classList.add("base-filter-active");
+    else filterBtn.classList.remove("base-filter-active");
+
+    // refresh filter panel if open
+    if (!filterPanel.classList.contains("hidden")) {
+      renderFilterPanel(response);
+    }
+
     // warnings bar
     if (warnings.length > 0) {
       const warningsEl = document.createElement("div");
@@ -196,8 +356,6 @@ export function createBaseTableView(
       });
       container.appendChild(tabs);
     }
-
-    const view = definition.views?.[currentViewIndex];
 
     // toolbar-level controls that depend on the view (Add view button)
     renderToolbarExtras(definition);
@@ -760,6 +918,164 @@ function parseInputValue(str: string): unknown {
     return trimmed.split(",").map((s) => s.trim());
   }
   return trimmed;
+}
+
+// ── Filter helpers ───────────────────────────────────────────────────────────
+
+function isFilterCondition(
+  item: FilterGroup | FilterCondition
+): item is FilterCondition {
+  return "property" in item && "operator" in item;
+}
+
+interface TrackedFilter {
+  condition: FilterCondition;
+  arrayKey: "and" | "or" | "not";
+  yamlIndex: number;
+}
+
+function flattenFilterConditions(filter: FilterGroup | null): TrackedFilter[] {
+  if (!filter) return [];
+  const results: TrackedFilter[] = [];
+  if (filter.and) {
+    for (let i = 0; i < filter.and.length; i++) {
+      const item = filter.and[i]!;
+      const yamlIdx = item._sourceIndex ?? i;
+      if (isFilterCondition(item)) results.push({ condition: item, arrayKey: "and", yamlIndex: yamlIdx });
+    }
+  }
+  if (filter.or) {
+    for (let i = 0; i < filter.or.length; i++) {
+      const item = filter.or[i]!;
+      const yamlIdx = item._sourceIndex ?? i;
+      if (isFilterCondition(item)) results.push({ condition: item, arrayKey: "or", yamlIndex: yamlIdx });
+    }
+  }
+  if (filter.not && isFilterCondition(filter.not)) {
+    results.push({ condition: filter.not, arrayKey: "not", yamlIndex: 0 });
+  }
+  return results;
+}
+
+const OPERATOR_LABELS: Record<string, string> = {
+  eq: "=",
+  neq: "≠",
+  gt: ">",
+  lt: "<",
+  gte: "≥",
+  lte: "≤",
+  contains: "contains",
+  exists: "exists",
+  empty: "is empty",
+};
+
+function formatFilterCondition(cond: FilterCondition): string {
+  const opLabel = OPERATOR_LABELS[cond.operator] ?? cond.operator;
+  if (cond.operator === "exists" || cond.operator === "empty") {
+    return `${cond.property} ${opLabel}`;
+  }
+  const val = cond.value !== undefined && cond.value !== null
+    ? String(cond.value)
+    : "";
+  return `${cond.property} ${opLabel} ${val}`.trim();
+}
+
+function openFilterDialog(
+  current: FilterCondition | null,
+  _scope: "base" | "view"
+): Promise<FilterPatch | null> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "base-modal-overlay";
+    const modal = document.createElement("div");
+    modal.className = "base-modal";
+
+    const initProp = current?.property ?? "";
+    const initOp = current?.operator ?? "eq";
+    const initVal = current?.value !== undefined && current?.value !== null
+      ? String(current.value)
+      : "";
+
+    const operators = ["eq", "neq", "gt", "lt", "gte", "lte", "contains", "exists", "empty"];
+
+    modal.innerHTML = `
+      <div class="base-modal-title">${current ? "Edit" : "Add"} filter</div>
+      <div class="base-modal-body">
+        <label class="base-modal-label">Property</label>
+        <input class="base-modal-input" data-field="property" type="text"
+          placeholder='e.g. status, file.inFolder("Folder"), file.hasTag("tag")'
+          value="${escapeHtml(initProp)}">
+        <label class="base-modal-label">Operator</label>
+        <select class="base-modal-input" data-field="operator">
+          ${operators.map((op) => `<option value="${op}" ${op === initOp ? "selected" : ""}>${OPERATOR_LABELS[op] ?? op} (${op})</option>`).join("")}
+        </select>
+        <label class="base-modal-label" data-value-label>Value</label>
+        <input class="base-modal-input" data-field="value" type="text"
+          placeholder="Filter value" value="${escapeHtml(initVal)}">
+        <div class="base-modal-hint">
+          Use <code>file.inFolder("path")</code>, <code>file.hasTag("tag")</code>, or any frontmatter property.
+        </div>
+      </div>
+      <div class="base-modal-actions">
+        <button class="base-modal-cancel">Cancel</button>
+        <button class="base-modal-ok">${current ? "Save" : "Add"}</button>
+      </div>
+    `;
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    const propInput = modal.querySelector<HTMLInputElement>('[data-field="property"]')!;
+    const opSelect = modal.querySelector<HTMLSelectElement>('[data-field="operator"]')!;
+    const valInput = modal.querySelector<HTMLInputElement>('[data-field="value"]')!;
+    const valLabel = modal.querySelector<HTMLElement>('[data-value-label]')!;
+    const ok = modal.querySelector<HTMLButtonElement>(".base-modal-ok")!;
+    const cancel = modal.querySelector<HTMLButtonElement>(".base-modal-cancel")!;
+
+    const updateValueVisibility = () => {
+      const op = opSelect.value;
+      const hidden = op === "exists" || op === "empty";
+      valInput.style.display = hidden ? "none" : "";
+      valLabel.style.display = hidden ? "none" : "";
+    };
+    opSelect.addEventListener("change", updateValueVisibility);
+    updateValueVisibility();
+
+    const close = (val: FilterPatch | null) => {
+      overlay.remove();
+      resolve(val);
+    };
+
+    ok.addEventListener("click", () => {
+      const property = propInput.value.trim();
+      if (!property) return;
+      const operator = opSelect.value;
+      const rawVal = valInput.value.trim();
+      let value: unknown;
+      if (operator === "exists" || operator === "empty") {
+        value = undefined;
+      } else if (rawVal === "true") {
+        value = true;
+      } else if (rawVal === "false") {
+        value = false;
+      } else if (rawVal !== "" && !isNaN(Number(rawVal))) {
+        value = Number(rawVal);
+      } else {
+        value = rawVal || undefined;
+      }
+      close({ property, operator, value });
+    });
+    cancel.addEventListener("click", () => close(null));
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) close(null); });
+    propInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); ok.click(); }
+      else if (e.key === "Escape") { e.preventDefault(); close(null); }
+    });
+    valInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); ok.click(); }
+      else if (e.key === "Escape") { e.preventDefault(); close(null); }
+    });
+    setTimeout(() => propInput.focus(), 0);
+  });
 }
 
 

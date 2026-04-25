@@ -30,12 +30,14 @@ export interface FilterCondition {
   property: string;
   operator: FilterOperator;
   value?: unknown | undefined;
+  _sourceIndex?: number | undefined;
 }
 
 export interface FilterGroup {
   and?: Array<FilterGroup | FilterCondition> | undefined;
   or?: Array<FilterGroup | FilterCondition> | undefined;
   not?: FilterGroup | FilterCondition | undefined;
+  _sourceIndex?: number | undefined;
 }
 
 export interface FormulaDefinition {

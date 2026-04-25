@@ -634,4 +634,71 @@
     @apply bg-ob-surface rounded-sm;
     padding: 1px 4px;
   }
+
+  /* ── Filter panel ──────────────────────────────────────────────────── */
+
+  .base-filter-panel {
+    @apply border-b border-ob-border bg-ob-bg2 px-4 py-3;
+  }
+  .base-filter-panel.hidden { display: none; }
+  .base-filter-section {
+    @apply mb-3;
+  }
+  .base-filter-section:last-child { @apply mb-0; }
+  .base-filter-section-title {
+    @apply text-ob-muted font-medium mb-2;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .base-filter-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 8px;
+  }
+  .base-filter-row {
+    @apply flex items-center gap-2 bg-ob-surface rounded px-3 py-1.5;
+    font-size: 13px;
+  }
+  .base-filter-label {
+    @apply text-ob-text flex-1;
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+  .base-filter-array-label {
+    @apply text-ob-muted bg-ob-bg rounded px-1.5 py-0.5;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+  }
+  .base-filter-action-btn {
+    @apply text-ob-muted;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 4px;
+    line-height: 1;
+  }
+  .base-filter-action-btn:hover { @apply text-ob-text; }
+  .base-filter-remove-btn:hover { @apply text-ob-red; }
+  .base-filter-empty {
+    @apply text-ob-muted;
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+  .base-filter-add-btn {
+    @apply text-ob-accent;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0;
+  }
+  .base-filter-add-btn:hover { @apply underline; }
+  .base-filter-active {
+    @apply text-ob-accent;
+  }
 }

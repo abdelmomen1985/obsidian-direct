@@ -9,6 +9,12 @@ export interface PropertyPatch {
   hidden?: boolean | null;
 }
 
+export interface FilterPatch {
+  property: string;
+  operator: string;
+  value?: unknown;
+}
+
 export type Mutation =
   | { type: "addProperty"; property: PropertyPatch }
   | { type: "updateProperty"; oldName: string; property: PropertyPatch }
@@ -17,7 +23,11 @@ export type Mutation =
   | { type: "removeColumn"; viewIndex: number; column: string }
   | { type: "reorderColumns"; viewIndex: number; columns: string[] }
   | { type: "addView"; view: { name: string; type?: string } }
-  | { type: "removeView"; viewIndex: number };
+  | { type: "removeView"; viewIndex: number }
+  | { type: "addFilter"; filter: FilterPatch; scope?: "base" | "view"; viewIndex?: number }
+  | { type: "removeFilter"; filterIndex: number; scope?: "base" | "view"; viewIndex?: number }
+  | { type: "updateFilter"; filterIndex: number; filter: FilterPatch; scope?: "base" | "view"; viewIndex?: number }
+  | { type: "clearFilters"; scope?: "base" | "view"; viewIndex?: number };
 
 export interface MutationResult {
   yaml: string;
@@ -48,6 +58,14 @@ export function applyMutation(yaml: string, mutation: Mutation): MutationResult 
       return finish(doc, addView(doc, mutation.view));
     case "removeView":
       return finish(doc, removeView(doc, mutation.viewIndex));
+    case "addFilter":
+      return finish(doc, addFilter(doc, mutation.filter, mutation.scope, mutation.viewIndex));
+    case "removeFilter":
+      return finish(doc, removeFilter(doc, mutation.filterIndex, mutation.scope, mutation.viewIndex));
+    case "updateFilter":
+      return finish(doc, updateFilter(doc, mutation.filterIndex, mutation.filter, mutation.scope, mutation.viewIndex));
+    case "clearFilters":
+      return finish(doc, clearFilters(doc, mutation.scope, mutation.viewIndex));
   }
 }
 
@@ -252,5 +270,136 @@ function removeView(doc: Document, viewIndex: number): boolean {
   if (viewIndex < 0 || viewIndex >= views.items.length) return false;
   views.delete(viewIndex);
   if (views.items.length === 0) doc.delete("views");
+  return true;
+}
+
+// ── Filters ──────────────────────────────────────────────────────────────────
+
+function buildFilterConditionMap(patch: FilterPatch): YAMLMap {
+  const map = new YAMLMap();
+  map.set("property", patch.property);
+  map.set("operator", patch.operator);
+  if (patch.value !== undefined) map.set("value", patch.value);
+  return map;
+}
+
+function getFilterTarget(
+  doc: Document,
+  scope: "base" | "view" | undefined,
+  viewIndex: number | undefined
+): YAMLMap | Document {
+  if (scope === "view" && typeof viewIndex === "number") {
+    return getView(doc, viewIndex);
+  }
+  return doc;
+}
+
+function getOrCreateFilterAndSeq(
+  target: YAMLMap | Document
+): YAMLSeq {
+  let filtersMap: YAMLMap;
+  const existing = target instanceof YAMLMap
+    ? target.get("filter")
+    : target.get("filters");
+  const key = target instanceof YAMLMap ? "filter" : "filters";
+
+  if (isMap(existing)) {
+    filtersMap = existing;
+  } else {
+    filtersMap = new YAMLMap();
+    if (target instanceof YAMLMap) {
+      target.set(key, filtersMap);
+    } else {
+      target.set(key, filtersMap);
+    }
+  }
+
+  const andSeq = filtersMap.get("and");
+  if (isSeq(andSeq)) return andSeq;
+  const seq = new YAMLSeq();
+  filtersMap.set("and", seq);
+  return seq;
+}
+
+function addFilter(
+  doc: Document,
+  patch: FilterPatch,
+  scope?: "base" | "view",
+  viewIndex?: number
+): boolean {
+  if (!patch.property) throw new Error("Filter property is required");
+  const target = getFilterTarget(doc, scope, viewIndex);
+  const seq = getOrCreateFilterAndSeq(target);
+  seq.add(buildFilterConditionMap(patch));
+  return true;
+}
+
+function removeFilter(
+  doc: Document,
+  filterIndex: number,
+  scope?: "base" | "view",
+  viewIndex?: number
+): boolean {
+  const target = getFilterTarget(doc, scope, viewIndex);
+  const key = target instanceof YAMLMap ? "filter" : "filters";
+  const filtersMap = target instanceof YAMLMap
+    ? target.get(key)
+    : target.get(key);
+  if (!isMap(filtersMap)) return false;
+  const andSeq = filtersMap.get("and");
+  if (!isSeq(andSeq)) return false;
+  if (filterIndex < 0 || filterIndex >= andSeq.items.length) return false;
+  andSeq.delete(filterIndex);
+  if (andSeq.items.length === 0) {
+    filtersMap.delete("and");
+    // if filters map is now empty, remove it entirely
+    const hasKeys = filtersMap.items.length > 0;
+    if (!hasKeys) {
+      if (target instanceof YAMLMap) {
+        target.delete(key);
+      } else {
+        target.delete(key);
+      }
+    }
+  }
+  return true;
+}
+
+function updateFilter(
+  doc: Document,
+  filterIndex: number,
+  patch: FilterPatch,
+  scope?: "base" | "view",
+  viewIndex?: number
+): boolean {
+  const target = getFilterTarget(doc, scope, viewIndex);
+  const key = target instanceof YAMLMap ? "filter" : "filters";
+  const filtersMap = target instanceof YAMLMap
+    ? target.get(key)
+    : target.get(key);
+  if (!isMap(filtersMap)) return false;
+  const andSeq = filtersMap.get("and");
+  if (!isSeq(andSeq)) return false;
+  if (filterIndex < 0 || filterIndex >= andSeq.items.length) return false;
+  andSeq.set(filterIndex, buildFilterConditionMap(patch));
+  return true;
+}
+
+function clearFilters(
+  doc: Document,
+  scope?: "base" | "view",
+  viewIndex?: number
+): boolean {
+  const target = getFilterTarget(doc, scope, viewIndex);
+  const key = target instanceof YAMLMap ? "filter" : "filters";
+  const existing = target instanceof YAMLMap
+    ? target.get(key)
+    : target.get(key);
+  if (!existing) return false;
+  if (target instanceof YAMLMap) {
+    target.delete(key);
+  } else {
+    target.delete(key);
+  }
   return true;
 }
