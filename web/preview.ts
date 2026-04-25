@@ -167,7 +167,7 @@ export function attachCheckboxHandlers(
 function processTaskCheckboxes(html: string, sourceLines: string[]): string {
   let cbIndex = 0;
   return html.replace(
-    /<li>\s*<input\s+(?:type="checkbox"\s*)?(?:checked\s*)?(?:disabled\s*)?(?:type="checkbox"\s*)?\/?>(?:\s*)/gi,
+    /<li>\s*<input\s+[^>]*type="checkbox"[^>]*>\s*/gi,
     (match) => {
       const isChecked = /checked/i.test(match);
       const lineNum = findTaskLine(sourceLines, cbIndex, isChecked);
