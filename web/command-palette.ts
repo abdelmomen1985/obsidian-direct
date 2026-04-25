@@ -48,6 +48,13 @@ export function createCommandPalette(): CommandPaletteHandle {
     return !panel.classList.contains("hidden");
   }
 
+  function updateSelected(): void {
+    list.querySelectorAll<HTMLElement>(".cmd-item").forEach((el, i) => {
+      el.classList.toggle("selected", i === selectedIdx);
+    });
+    list.querySelector<HTMLElement>(".cmd-item.selected")?.scrollIntoView({ block: "nearest" });
+  }
+
   function render(): void {
     list.innerHTML = "";
     if (filtered.length === 0) {
@@ -77,9 +84,10 @@ export function createCommandPalette(): CommandPaletteHandle {
 
       item.addEventListener("mouseenter", () => {
         selectedIdx = i;
-        render();
+        updateSelected();
       });
       item.addEventListener("click", () => {
+        selectedIdx = i;
         runSelected();
       });
 
@@ -114,11 +122,11 @@ export function createCommandPalette(): CommandPaletteHandle {
     if (e.key === "ArrowDown") {
       e.preventDefault();
       selectedIdx = Math.min(selectedIdx + 1, filtered.length - 1);
-      render();
+      updateSelected();
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       selectedIdx = Math.max(selectedIdx - 1, 0);
-      render();
+      updateSelected();
     } else if (e.key === "Enter") {
       e.preventDefault();
       runSelected();

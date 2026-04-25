@@ -51,6 +51,10 @@ function ensureMdExt(path: string): string {
   return /\.md$/i.test(path) ? path : `${path}.md`;
 }
 
+function ensureBaseExt(path: string): string {
+  return /\.base$/i.test(path) ? path : `${path}.base`;
+}
+
 function joinPath(dir: string, name: string): string {
   if (!dir) return name;
   return `${dir.replace(/\/$/, "")}/${name}`;
@@ -235,6 +239,12 @@ function showApp(): void {
         label: "Create new file",
         description: "Ctrl+N",
         action: () => void newFilePrompt(""),
+      },
+      {
+        id: "new-base",
+        label: "Create new base file",
+        description: "Create a .base query/table file",
+        action: () => void newBaseFilePrompt(""),
       },
       {
         id: "new-folder",
@@ -505,6 +515,23 @@ function showApp(): void {
     const fullPath = ensureMdExt(trimmed);
     try {
       const created = await createFile(fullPath, "");
+      renderTree(treeEl, openFile, activePathRef);
+      await openFile(created);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Create failed");
+    }
+  }
+
+  async function newBaseFilePrompt(dirPath: string): Promise<void> {
+    const suggested = dirPath ? `${dirPath}/untitled.base` : "untitled.base";
+    const rawInput = prompt("New base file path (under vault root):", suggested);
+    if (rawInput === null) return;
+    const trimmed = rawInput.trim();
+    if (!trimmed) return;
+    const fullPath = ensureBaseExt(trimmed);
+    const template = `properties:\n  - name: title\n    type: string\n\nviews:\n  - name: Default View\n    type: table\n    columns: [title]\n`;
+    try {
+      const created = await createFile(fullPath, template);
       renderTree(treeEl, openFile, activePathRef);
       await openFile(created);
     } catch (err) {
