@@ -127,8 +127,8 @@ function evaluateFilterGroup(
       const result = isFilterCondition(item)
         ? evaluateCondition(note, item)
         : evaluateFilterGroup(note, item);
-      if (!result.supported) return result;
-      if (result.matches) anyMatch = true;
+      if (!result.supported) { if (!anyMatch) return result; }
+      if (result.matches) { anyMatch = true; break; }
     }
     if (!anyMatch) return { supported: true, matches: false };
   }
