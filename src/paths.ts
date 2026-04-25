@@ -12,7 +12,7 @@ const READ_EXTS = new Set([
   ".webp",
   ".svg",
 ]);
-const WRITE_EXTS = new Set([".md"]);
+const WRITE_EXTS = new Set([".md", ".base"]);
 
 export class PathError extends Error {
   constructor(message: string) {
