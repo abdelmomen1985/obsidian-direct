@@ -182,8 +182,8 @@ function parseStringFilter(
     let value: unknown = opMatch[3]?.trim();
     if (typeof value === "string") {
       // strip surrounding quotes
-      const strMatch = /^["'](.*)["']$/.exec(value);
-      if (strMatch) value = strMatch[1];
+      const strMatch = /^"(.*)"$|^'(.*)'$/.exec(value);
+      if (strMatch) value = strMatch[1] ?? strMatch[2];
       // try numeric conversion
       else if (value !== "" && !isNaN(Number(value))) value = Number(value);
       // boolean

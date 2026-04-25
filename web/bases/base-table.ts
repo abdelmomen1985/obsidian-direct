@@ -117,7 +117,7 @@ export function createBaseTableView(
       viewSection.className = "base-filter-section";
       const viewTitle = document.createElement("div");
       viewTitle.className = "base-filter-section-title";
-      viewTitle.textContent = `View filters (${escapeHtml(view.name)})`;
+      viewTitle.textContent = `View filters (${view.name})`;
       viewSection.appendChild(viewTitle);
       renderFilterConditions(viewSection, view.filter ?? null, "view");
       filterPanel.appendChild(viewSection);
@@ -134,49 +134,57 @@ export function createBaseTableView(
     if (conditions.length > 0) {
       const list = document.createElement("div");
       list.className = "base-filter-list";
-      conditions.forEach((cond, idx) => {
+      for (const tracked of conditions) {
         const row = document.createElement("div");
         row.className = "base-filter-row";
 
+        const arrayLabel = document.createElement("span");
+        arrayLabel.className = "base-filter-array-label";
+        arrayLabel.textContent = tracked.arrayKey.toUpperCase();
+        row.appendChild(arrayLabel);
+
         const label = document.createElement("span");
         label.className = "base-filter-label";
-        label.textContent = formatFilterCondition(cond);
+        label.textContent = formatFilterCondition(tracked.condition);
         row.appendChild(label);
 
-        const editBtn = document.createElement("button");
-        editBtn.className = "base-filter-action-btn";
-        editBtn.title = "Edit filter";
-        editBtn.textContent = "✎";
-        editBtn.addEventListener("click", () => {
-          void openFilterDialog(cond, scope).then((patch) => {
-            if (!patch) return;
+        // only and-conditions are editable/removable via mutations
+        if (tracked.arrayKey === "and") {
+          const editBtn = document.createElement("button");
+          editBtn.className = "base-filter-action-btn";
+          editBtn.title = "Edit filter";
+          editBtn.textContent = "✎";
+          editBtn.addEventListener("click", () => {
+            void openFilterDialog(tracked.condition, scope).then((patch) => {
+              if (!patch) return;
+              void applyMutation({
+                type: "updateFilter",
+                filterIndex: tracked.yamlIndex,
+                filter: patch,
+                scope,
+                viewIndex: scope === "view" ? currentViewIndex : undefined,
+              });
+            });
+          });
+          row.appendChild(editBtn);
+
+          const removeBtn = document.createElement("button");
+          removeBtn.className = "base-filter-action-btn base-filter-remove-btn";
+          removeBtn.title = "Remove filter";
+          removeBtn.textContent = "×";
+          removeBtn.addEventListener("click", () => {
             void applyMutation({
-              type: "updateFilter",
-              filterIndex: idx,
-              filter: patch,
+              type: "removeFilter",
+              filterIndex: tracked.yamlIndex,
               scope,
               viewIndex: scope === "view" ? currentViewIndex : undefined,
             });
           });
-        });
-        row.appendChild(editBtn);
-
-        const removeBtn = document.createElement("button");
-        removeBtn.className = "base-filter-action-btn base-filter-remove-btn";
-        removeBtn.title = "Remove filter";
-        removeBtn.textContent = "×";
-        removeBtn.addEventListener("click", () => {
-          void applyMutation({
-            type: "removeFilter",
-            filterIndex: idx,
-            scope,
-            viewIndex: scope === "view" ? currentViewIndex : undefined,
-          });
-        });
-        row.appendChild(removeBtn);
+          row.appendChild(removeBtn);
+        }
 
         list.appendChild(row);
-      });
+      }
       container.appendChild(list);
     } else {
       const empty = document.createElement("div");
@@ -920,21 +928,29 @@ function isFilterCondition(
   return "property" in item && "operator" in item;
 }
 
-function flattenFilterConditions(filter: FilterGroup | null): FilterCondition[] {
+interface TrackedFilter {
+  condition: FilterCondition;
+  arrayKey: "and" | "or" | "not";
+  yamlIndex: number;
+}
+
+function flattenFilterConditions(filter: FilterGroup | null): TrackedFilter[] {
   if (!filter) return [];
-  const results: FilterCondition[] = [];
+  const results: TrackedFilter[] = [];
   if (filter.and) {
-    for (const item of filter.and) {
-      if (isFilterCondition(item)) results.push(item);
+    for (let i = 0; i < filter.and.length; i++) {
+      const item = filter.and[i]!;
+      if (isFilterCondition(item)) results.push({ condition: item, arrayKey: "and", yamlIndex: i });
     }
   }
   if (filter.or) {
-    for (const item of filter.or) {
-      if (isFilterCondition(item)) results.push(item);
+    for (let i = 0; i < filter.or.length; i++) {
+      const item = filter.or[i]!;
+      if (isFilterCondition(item)) results.push({ condition: item, arrayKey: "or", yamlIndex: i });
     }
   }
   if (filter.not && isFilterCondition(filter.not)) {
-    results.push(filter.not);
+    results.push({ condition: filter.not, arrayKey: "not", yamlIndex: 0 });
   }
   return results;
 }
