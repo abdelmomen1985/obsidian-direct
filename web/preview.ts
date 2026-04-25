@@ -52,7 +52,7 @@ const CALLOUT_TYPES: Record<string, { icon: string; color: string }> = {
 function processCallouts(html: string): string {
   // Match blockquotes that start with [!type]
   return html.replace(
-    /<blockquote>\s*<p>\s*\[!(\w+)\]([+-]?)[ ]*([^<]*?)\n?([\s\S]*?)<\/p>([\s\S]*?)<\/blockquote>/gi,
+    /<blockquote>\s*<p>\s*\[!(\w+)\]([+-]?)[ ]*([^\n<]*)\n?([\s\S]*?)<\/p>([\s\S]*?)<\/blockquote>/gi,
     (_, type, foldChar, title, body, rest) => {
       const typeLower = (type as string).toLowerCase();
       const meta = CALLOUT_TYPES[typeLower] ?? CALLOUT_TYPES["note"]!;
