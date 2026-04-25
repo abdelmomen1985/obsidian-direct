@@ -132,18 +132,23 @@ function parseFilterList(
   warnings: string[]
 ): Array<FilterGroup | FilterCondition> {
   const result: Array<FilterGroup | FilterCondition> = [];
-  for (const item of items) {
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
     if (typeof item === "string") {
       const parsed = parseStringFilter(item, warnings);
-      if (parsed) result.push(parsed);
+      if (parsed) { parsed._sourceIndex = i; result.push(parsed); }
       continue;
     }
     if (item === null || typeof item !== "object" || Array.isArray(item)) continue;
     const obj = item as Record<string, unknown>;
     if ("property" in obj && "operator" in obj) {
-      result.push(parseFilterCondition(obj, warnings));
+      const cond = parseFilterCondition(obj, warnings);
+      cond._sourceIndex = i;
+      result.push(cond);
     } else {
-      result.push(parseFilterGroup(obj, warnings));
+      const group = parseFilterGroup(obj, warnings);
+      group._sourceIndex = i;
+      result.push(group);
     }
   }
   return result;

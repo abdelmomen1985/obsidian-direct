@@ -87,7 +87,6 @@ export function createBaseTableView(
 
   const filterPanel = document.createElement("div");
   filterPanel.className = "base-filter-panel hidden";
-  wrapper.appendChild(filterPanel);
 
   function toggleFilterPanel(): void {
     filterPanel.classList.toggle("hidden");
@@ -225,6 +224,7 @@ export function createBaseTableView(
     toolbar.appendChild(sourceBtn);
   }
   wrapper.appendChild(toolbar);
+  wrapper.appendChild(filterPanel);
 
   const container = document.createElement("div");
   container.className = "base-view";
@@ -940,13 +940,15 @@ function flattenFilterConditions(filter: FilterGroup | null): TrackedFilter[] {
   if (filter.and) {
     for (let i = 0; i < filter.and.length; i++) {
       const item = filter.and[i]!;
-      if (isFilterCondition(item)) results.push({ condition: item, arrayKey: "and", yamlIndex: i });
+      const yamlIdx = item._sourceIndex ?? i;
+      if (isFilterCondition(item)) results.push({ condition: item, arrayKey: "and", yamlIndex: yamlIdx });
     }
   }
   if (filter.or) {
     for (let i = 0; i < filter.or.length; i++) {
       const item = filter.or[i]!;
-      if (isFilterCondition(item)) results.push({ condition: item, arrayKey: "or", yamlIndex: i });
+      const yamlIdx = item._sourceIndex ?? i;
+      if (isFilterCondition(item)) results.push({ condition: item, arrayKey: "or", yamlIndex: yamlIdx });
     }
   }
   if (filter.not && isFilterCondition(filter.not)) {

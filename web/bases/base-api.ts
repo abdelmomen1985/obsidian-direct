@@ -14,12 +14,14 @@ export interface FilterCondition {
   property: string;
   operator: string;
   value?: unknown;
+  _sourceIndex?: number;
 }
 
 export interface FilterGroup {
   and?: Array<FilterGroup | FilterCondition>;
   or?: Array<FilterGroup | FilterCondition>;
   not?: FilterGroup | FilterCondition;
+  _sourceIndex?: number;
 }
 
 export interface PropertyDefinition {
