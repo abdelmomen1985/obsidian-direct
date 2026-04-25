@@ -329,6 +329,18 @@
 
   /* ── Bases table view ─────────────────────────────────────────────────── */
 
+  .base-view-wrapper { @apply flex flex-col h-full; }
+
+  .base-toolbar {
+    @apply flex items-center justify-end px-3 py-1.5 border-b border-ob-border bg-ob-bg2;
+    flex-shrink: 0;
+  }
+  .base-source-btn {
+    @apply text-ob-muted;
+    font-size: 12px;
+  }
+  .base-source-btn:hover { @apply text-ob-text; }
+
   .base-view { @apply p-4; }
   .base-loading, .base-error { @apply p-6 text-center text-ob-muted; font-size: 14px; }
   .base-error { @apply text-ob-red; }

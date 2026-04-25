@@ -33,6 +33,7 @@ let currentPath: string | null = null;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let isDirty = false;
 const activePathRef = { current: "" };
+let baseTableRefresh: (() => Promise<void>) | null = null;
 
 type SaveStatus = "idle" | "editing" | "saving" | "saved" | "error";
 type ViewMode = "split" | "editor" | "preview";
@@ -401,10 +402,29 @@ function showApp(): void {
   }
 
   function displayName(path: string): string {
-    return path.split("/").pop()?.replace(/\.md$/, "") ?? path;
+    return path.split("/").pop()?.replace(/\.(md|base)$/, "") ?? path;
   }
 
   function cycleViewMode(): void {
+    if (currentPath?.endsWith(".base")) {
+      const inSourceMode = !editorPaneEl.classList.contains("hidden");
+      if (inSourceMode) {
+        // Switch back to table view, saving first if needed
+        editorPaneEl.classList.add("hidden");
+        editorPaneEl.classList.remove("full-width");
+        previewPaneEl.classList.remove("hidden");
+        previewPaneEl.classList.add("full-width");
+        const doRefresh = () => { if (baseTableRefresh) void baseTableRefresh(); };
+        if (isDirty && currentPath) {
+          void doSave().then(doRefresh);
+        } else {
+          doRefresh();
+        }
+      } else {
+        void switchToBaseSource();
+      }
+      return;
+    }
     const next: Record<ViewMode, ViewMode> = {
       split: "editor",
       editor: "preview",
@@ -421,6 +441,25 @@ function showApp(): void {
     previewPaneEl.classList.toggle("full-width", viewMode === "preview");
   }
   applyViewMode();
+
+  async function switchToBaseSource(): Promise<void> {
+    if (!currentPath?.endsWith(".base")) return;
+    try {
+      const content = await getFile(currentPath);
+      if (editorView) {
+        setEditorContent(editorView, content);
+        isDirty = false;
+        updateWordCount(content);
+      }
+    } catch {
+      setStatus("error", "Failed to load file");
+      return;
+    }
+    editorPaneEl.classList.remove("hidden");
+    editorPaneEl.classList.add("full-width");
+    previewPaneEl.classList.add("hidden");
+    previewPaneEl.classList.remove("full-width");
+  }
 
   // ── Preview ────────────────────────────────────────────────────────────
   let previewDebounce: ReturnType<typeof setTimeout> | null = null;
@@ -474,22 +513,39 @@ function showApp(): void {
     titleEl.textContent = displayName(path);
     setStatus("idle");
 
-    // .base files open in table view
+    // .base files open in table view with optional source editing
     if (path.endsWith(".base")) {
+      // Load YAML into editor so source mode is ready immediately
+      try {
+        const content = await getFile(path);
+        if (editorView) {
+          setEditorContent(editorView, content);
+          isDirty = false;
+        }
+      } catch {
+        setStatus("error", "Failed to load file");
+        return;
+      }
+
       editorPaneEl.classList.add("hidden");
+      editorPaneEl.classList.remove("full-width");
       previewPaneEl.classList.remove("hidden");
       previewPaneEl.classList.add("full-width");
       previewEl.innerHTML = "";
-      const { el } = createBaseTableView(path, {
+
+      const { el, refresh: refreshTable } = createBaseTableView(path, {
         onOpenNote: (notePath) => void openFile(notePath),
         onRefresh: () => {},
+        onToggleSource: () => void switchToBaseSource(),
       });
       previewEl.appendChild(el);
+      baseTableRefresh = refreshTable;
       updateWordCount("");
       return;
     }
 
     // restore normal view mode for .md files
+    baseTableRefresh = null;
     applyViewMode();
 
     try {
