@@ -525,6 +525,74 @@
     font-size: 13px;
   }
 
+  /* ── Bases card / list view ──────────────────────────────────────────── */
+
+  .base-card-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+  }
+  .base-card-gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+  }
+  .base-card {
+    @apply bg-ob-bg2 border border-ob-border rounded-md p-3 transition-colors duration-100;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 96px;
+  }
+  .base-card:hover { @apply border-ob-accent; }
+  .base-card-title {
+    @apply text-ob-accent no-underline;
+    font-weight: 600;
+    font-size: 14px;
+    word-break: break-word;
+  }
+  .base-card-title:hover { @apply underline; }
+  .base-card-folder {
+    @apply text-ob-muted;
+    font-size: 11px;
+  }
+  .base-card-meta {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    column-gap: 8px;
+    row-gap: 2px;
+    margin: 4px 0 0 0;
+  }
+  .base-card-meta-label {
+    @apply text-ob-muted;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .base-card-meta-value {
+    @apply text-ob-text;
+    font-size: 12px;
+    word-break: break-word;
+    margin: 0;
+  }
+  .base-card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: auto;
+  }
+  .base-card-tag {
+    @apply bg-ob-surface text-ob-muted rounded;
+    padding: 2px 6px;
+    font-size: 11px;
+  }
+  .base-card-empty {
+    @apply text-ob-muted text-center;
+    grid-column: 1 / -1;
+    padding: 24px;
+    font-size: 13px;
+  }
+
   /* Unsupported view placeholder */
   .base-unsupported-view {
     @apply flex flex-col items-center justify-center p-12 text-center text-ob-muted;

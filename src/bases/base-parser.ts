@@ -12,7 +12,7 @@ import type {
   GroupDefinition,
 } from "./types.ts";
 
-const SUPPORTED_VIEW_TYPES: ViewType[] = ["table"];
+const SUPPORTED_VIEW_TYPES: ViewType[] = ["table", "list", "gallery"];
 const KNOWN_TOP_LEVEL_KEYS = new Set([
   "filters",
   "formulas",

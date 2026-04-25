@@ -465,6 +465,10 @@ function showApp(): void {
   let previewDebounce: ReturnType<typeof setTimeout> | null = null;
   function updatePreview(doc: string): void {
     if (previewDebounce) clearTimeout(previewDebounce);
+    previewDebounce = null;
+    // .base files render the structured view in the preview pane; never let
+    // the markdown preview overwrite it.
+    if (currentPath?.endsWith(".base")) return;
     previewDebounce = setTimeout(() => {
       const { html, isRtl } = renderMarkdown(doc);
       previewEl.innerHTML = html;
@@ -585,7 +589,17 @@ function showApp(): void {
     const trimmed = rawInput.trim();
     if (!trimmed) return;
     const fullPath = ensureBaseExt(trimmed);
-    const template = `properties:\n  - name: title\n    type: string\n\nviews:\n  - name: Default View\n    type: table\n    columns: [title]\n`;
+    // Default template: works out-of-the-box because columns reference
+    // built-in file.* fields. Includes both a Table and a Cards view so
+    // users can see card-list rendering immediately.
+    const template =
+      "views:\n" +
+      "  - name: Table\n" +
+      "    type: table\n" +
+      "    columns: [file.name, file.folder, file.mtime]\n" +
+      "  - name: Cards\n" +
+      "    type: list\n" +
+      "    columns: [file.name, file.folder]\n";
     try {
       const created = await createFile(fullPath, template);
       renderTree(treeEl, openFile, activePathRef);

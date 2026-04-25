@@ -8,16 +8,21 @@ import type {
   BaseMutation,
 } from "./base-api.ts";
 import { queryBase, updateProperty, mutateBase } from "./base-api.ts";
+import {
+  getCellValue,
+  formatValue,
+  formatColumnName,
+  escapeHtml,
+  compareValues,
+  applyClientSort,
+  type SortState,
+} from "./base-cell.ts";
+import { buildCardList } from "./base-card-view.ts";
 
 export interface BaseTableCallbacks {
   onOpenNote: (path: string) => void;
   onRefresh: () => void;
   onToggleSource?: () => void;
-}
-
-interface SortState {
-  column: string;
-  direction: "asc" | "desc";
 }
 
 export function createBaseTableView(
@@ -48,6 +53,22 @@ export function createBaseTableView(
   `;
   addColBtn.addEventListener("click", () => void promptAddColumn());
   toolbar.appendChild(addColBtn);
+
+  const addViewBtn = document.createElement("button");
+  addViewBtn.className = "base-toolbar-btn icon-btn";
+  addViewBtn.title = "Add a new view (table, list/cards, gallery)";
+  addViewBtn.innerHTML = `
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="3" y="3" width="7" height="7" rx="1"/>
+      <rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/>
+      <line x1="17.5" y1="14" x2="17.5" y2="21"/>
+      <line x1="14" y1="17.5" x2="21" y2="17.5"/>
+    </svg>
+    Add view
+  `;
+  addViewBtn.addEventListener("click", () => void promptAddView());
+  toolbar.appendChild(addViewBtn);
 
   if (callbacks.onToggleSource) {
     const sourceBtn = document.createElement("button");
@@ -107,6 +128,21 @@ export function createBaseTableView(
     });
   }
 
+  async function promptAddView(): Promise<void> {
+    const result = await pickViewDefinition();
+    if (!result) return;
+    await applyMutation({
+      type: "addView",
+      view: { name: result.name, type: result.type },
+    });
+    // jump to the newly-added view (refresh() already updated lastResponse)
+    const views = lastResponse?.definition.views;
+    if (views && views.length > 0) {
+      currentViewIndex = views.length - 1;
+      await refresh();
+    }
+  }
+
   async function removeColumnAt(column: string): Promise<void> {
     if (!confirm(`Remove column "${column}" from this view?`)) return;
     await applyMutation({
@@ -163,6 +199,9 @@ export function createBaseTableView(
 
     const view = definition.views?.[currentViewIndex];
 
+    // toolbar-level controls that depend on the view (Add view button)
+    renderToolbarExtras(definition);
+
     // unsupported view type
     if (view && !view._supported) {
       const placeholder = document.createElement("div");
@@ -194,6 +233,26 @@ export function createBaseTableView(
     infoBar.textContent = `${notes.length} of ${total} notes`;
     container.appendChild(infoBar);
 
+    const isCardLike = view?.type === "list" || view?.type === "gallery";
+    const renderGroupContent = (
+      key: string,
+      groupNotes: IndexedNote[]
+    ): HTMLElement => {
+      const sorted = currentSort ? applyClientSort(groupNotes, currentSort) : groupNotes;
+      const groupEl = document.createElement("div");
+      groupEl.className = "base-group";
+      const groupHeader = document.createElement("div");
+      groupHeader.className = "base-group-header";
+      groupHeader.textContent = key;
+      groupEl.appendChild(groupHeader);
+      groupEl.appendChild(
+        isCardLike
+          ? buildCardList(columns, sorted, definition, view, callbacks)
+          : buildTable(columns, sorted, definition)
+      );
+      return groupEl;
+    };
+
     // re-apply persistent client-side sort (if user has sorted by clicking)
     const sortedFlat = currentSort ? applyClientSort(notes, currentSort) : notes;
 
@@ -201,21 +260,19 @@ export function createBaseTableView(
     if (!Array.isArray(response.notes)) {
       const grouped = response.notes as Record<string, IndexedNote[]>;
       for (const [groupKey, groupNotes] of Object.entries(grouped)) {
-        const groupEl = document.createElement("div");
-        groupEl.className = "base-group";
-
-        const groupHeader = document.createElement("div");
-        groupHeader.className = "base-group-header";
-        groupHeader.textContent = groupKey;
-        groupEl.appendChild(groupHeader);
-
-        const sorted = currentSort ? applyClientSort(groupNotes, currentSort) : groupNotes;
-        groupEl.appendChild(buildTable(columns, sorted, definition));
-        container.appendChild(groupEl);
+        container.appendChild(renderGroupContent(groupKey, groupNotes));
       }
+    } else if (isCardLike) {
+      container.appendChild(
+        buildCardList(columns, sortedFlat, definition, view, callbacks)
+      );
     } else {
       container.appendChild(buildTable(columns, sortedFlat, definition));
     }
+  }
+
+  function renderToolbarExtras(_definition: BaseDefinition): void {
+    // (placeholder for future view-aware toolbar items)
   }
 
   function buildTable(
@@ -449,15 +506,6 @@ function buildRow(
   return tr;
 }
 
-function applyClientSort(notes: IndexedNote[], sort: SortState): IndexedNote[] {
-  return [...notes].sort((a, b) => {
-    const aVal = getCellValue(a, sort.column);
-    const bVal = getCellValue(b, sort.column);
-    const cmp = compareValues(aVal, bVal);
-    return sort.direction === "desc" ? -cmp : cmp;
-  });
-}
-
 function collectKnownProperties(response: QueryResponse | null): string[] {
   const known = new Set<string>([
     "file.name", "file.path", "file.folder", "file.ext",
@@ -483,6 +531,58 @@ function addMenuItem(menu: HTMLElement, label: string, onClick: () => void): voi
   item.textContent = label;
   item.addEventListener("click", () => onClick());
   menu.appendChild(item);
+}
+
+function pickViewDefinition(): Promise<{ name: string; type: string } | null> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "base-modal-overlay";
+    const modal = document.createElement("div");
+    modal.className = "base-modal";
+    modal.innerHTML = `
+      <div class="base-modal-title">Add view</div>
+      <div class="base-modal-body">
+        <label class="base-modal-label">Name</label>
+        <input class="base-modal-input" data-field="name" type="text" placeholder="e.g. Cards, Backlog" value="New view">
+        <label class="base-modal-label">View type</label>
+        <select class="base-modal-input" data-field="type">
+          <option value="table">Table</option>
+          <option value="list">Card list</option>
+          <option value="gallery">Gallery</option>
+        </select>
+        <div class="base-modal-hint">Card list and gallery render each note as a card. You can switch the type later by editing source.</div>
+      </div>
+      <div class="base-modal-actions">
+        <button class="base-modal-cancel">Cancel</button>
+        <button class="base-modal-ok">Add</button>
+      </div>
+    `;
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    const nameInput = modal.querySelector<HTMLInputElement>('[data-field="name"]')!;
+    const typeSelect = modal.querySelector<HTMLSelectElement>('[data-field="type"]')!;
+    const ok = modal.querySelector<HTMLButtonElement>(".base-modal-ok")!;
+    const cancel = modal.querySelector<HTMLButtonElement>(".base-modal-cancel")!;
+
+    const close = (val: { name: string; type: string } | null) => {
+      overlay.remove();
+      resolve(val);
+    };
+
+    ok.addEventListener("click", () => {
+      const name = nameInput.value.trim();
+      if (!name) return;
+      close({ name, type: typeSelect.value });
+    });
+    cancel.addEventListener("click", () => close(null));
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) close(null); });
+    nameInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); ok.click(); }
+      else if (e.key === "Escape") { e.preventDefault(); close(null); }
+    });
+    setTimeout(() => { nameInput.focus(); nameInput.select(); }, 0);
+  });
 }
 
 function pickColumnName(suggestions: string[]): Promise<string | null> {
@@ -648,48 +748,6 @@ function startCellEdit(
   });
 }
 
-function getCellValue(note: IndexedNote, column: string): unknown {
-  if (column.startsWith("formula:")) {
-    const key = column.slice("formula:".length);
-    return note.formulaValues?.[key];
-  }
-
-  switch (column) {
-    case "file.name":
-      return note.name;
-    case "file.path":
-      return note.path;
-    case "file.folder":
-      return note.folder;
-    case "file.ext":
-      return note.ext;
-    case "file.mtime":
-      return note.mtime;
-    case "file.ctime":
-      return note.ctime;
-    case "file.tags":
-    case "tags":
-      return note.tags.join(", ");
-    default:
-      return note.frontmatter[column];
-  }
-}
-
-function formatValue(value: unknown): string {
-  if (value === undefined || value === null) return "";
-  if (Array.isArray(value)) return value.join(", ");
-  if (typeof value === "boolean") return value ? "true" : "false";
-  if (value instanceof Date) return value.toLocaleDateString();
-  if (typeof value === "number" && value > 1e12) return new Date(value).toLocaleString();
-  return String(value);
-}
-
-function formatColumnName(col: string): string {
-  if (col.startsWith("formula:")) return col.slice("formula:".length);
-  if (col.startsWith("file.")) return col.slice("file.".length);
-  return col.charAt(0).toUpperCase() + col.slice(1).replace(/[-_]/g, " ");
-}
-
 function parseInputValue(str: string): unknown {
   const trimmed = str.trim();
   if (trimmed === "") return null;
@@ -704,18 +762,4 @@ function parseInputValue(str: string): unknown {
   return trimmed;
 }
 
-function compareValues(a: unknown, b: unknown): number {
-  if (a === b) return 0;
-  if (a === null || a === undefined) return -1;
-  if (b === null || b === undefined) return 1;
-  if (typeof a === "number" && typeof b === "number") return a - b;
-  return String(a).localeCompare(String(b));
-}
 
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}

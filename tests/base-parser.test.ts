@@ -57,6 +57,25 @@ views:
     expect(warnings.length).toBeGreaterThan(0);
   });
 
+  it("supports list and gallery view types", () => {
+    const yaml = `
+views:
+  - name: Cards
+    type: list
+    columns: [file.name]
+  - name: Photos
+    type: gallery
+    columns: [file.name, cover]
+`;
+    const { definition, warnings } = parseBaseYaml(yaml);
+    expect(definition.views).toHaveLength(2);
+    expect(definition.views?.[0]?.type).toBe("list");
+    expect(definition.views?.[0]?._supported).toBe(true);
+    expect(definition.views?.[1]?.type).toBe("gallery");
+    expect(definition.views?.[1]?._supported).toBe(true);
+    expect(warnings).toHaveLength(0);
+  });
+
   it("parses formulas", () => {
     const yaml = `
 formulas:
