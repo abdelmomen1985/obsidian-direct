@@ -131,7 +131,7 @@ export class VaultIndex {
       folder: dirname(relPath) === "." ? "" : dirname(relPath),
       ext,
       mtime: fileStat.mtimeMs,
-      ctime: fileStat.birthtimeMs ?? fileStat.ctimeMs,
+      ctime: fileStat.birthtimeMs || fileStat.ctimeMs,
       tags: allTags,
       frontmatter,
     };

@@ -88,10 +88,15 @@ function applyFilter(
   filter: FilterGroup,
   warnings: string[]
 ): IndexedNote[] {
+  const seen = new Set<string>();
   return notes.filter((note) => {
     const result = evaluateFilterGroup(note, filter);
     if (!result.supported) {
-      warnings.push(result.reason ?? "Unsupported filter expression");
+      const reason = result.reason ?? "Unsupported filter expression";
+      if (!seen.has(reason)) {
+        seen.add(reason);
+        warnings.push(reason);
+      }
       return true; // include note if filter can't be evaluated
     }
     return result.matches;
@@ -102,7 +107,10 @@ function evaluateFilterGroup(
   note: IndexedNote,
   group: FilterGroup
 ): EvalResult {
+  let hasAnyBranch = false;
+
   if (group.and) {
+    hasAnyBranch = true;
     for (const item of group.and) {
       const result = isFilterCondition(item)
         ? evaluateCondition(note, item)
@@ -110,29 +118,31 @@ function evaluateFilterGroup(
       if (!result.supported) return result;
       if (!result.matches) return { supported: true, matches: false };
     }
-    return { supported: true, matches: true };
   }
 
   if (group.or) {
+    hasAnyBranch = true;
+    let anyMatch = false;
     for (const item of group.or) {
       const result = isFilterCondition(item)
         ? evaluateCondition(note, item)
         : evaluateFilterGroup(note, item);
       if (!result.supported) return result;
-      if (result.matches) return { supported: true, matches: true };
+      if (result.matches) anyMatch = true;
     }
-    return { supported: true, matches: false };
+    if (!anyMatch) return { supported: true, matches: false };
   }
 
   if (group.not) {
+    hasAnyBranch = true;
     const inner = isFilterCondition(group.not)
       ? evaluateCondition(note, group.not)
       : evaluateFilterGroup(note, group.not);
     if (!inner.supported) return inner;
-    return { supported: true, matches: !inner.matches };
+    if (inner.matches) return { supported: true, matches: false };
   }
 
-  // empty group matches everything
+  // all present branches matched (or empty group matches everything)
   return { supported: true, matches: true };
 }
 
