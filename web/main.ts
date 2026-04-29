@@ -51,12 +51,16 @@ function showLogin(): void {
 window.addEventListener("auth:expired", () => showLogin());
 
 // ─── Utilities ──────────────────────────────────────────────────────────────
-function ensureMdExt(path: string): string {
-  return /\.md$/i.test(path) ? path : `${path}.md`;
-}
-
 function ensureBaseExt(path: string): string {
   return /\.base$/i.test(path) ? path : `${path}.base`;
+}
+
+// For "new file" / "rename" prompts: leave any editable extension alone
+// (.md or .base), and only default to .md when the user provided no
+// recognized extension. Without this, typing `foo.base` gets turned into
+// `foo.base.md` and is no longer recognized as a base file.
+function ensureNoteExt(path: string): string {
+  return /\.(md|base)$/i.test(path) ? path : `${path}.md`;
 }
 
 function isBasePath(path: string | null | undefined): path is string {
@@ -703,7 +707,7 @@ function showApp(): void {
     if (input === null) return;
     const trimmed = input.trim();
     if (!trimmed) return;
-    const fullPath = ensureMdExt(trimmed);
+    const fullPath = ensureNoteExt(trimmed);
     try {
       const created = await createFile(fullPath, "");
       renderTree(treeEl, openFile, activePathRef);
@@ -759,7 +763,7 @@ function showApp(): void {
     if (input === null) return;
     const trimmed = input.trim();
     if (!trimmed || trimmed === oldPath) return;
-    const newPath = ensureMdExt(trimmed);
+    const newPath = ensureNoteExt(trimmed);
     try {
       const resolved = await renameFile(oldPath, newPath);
       if (currentPath === oldPath) {
