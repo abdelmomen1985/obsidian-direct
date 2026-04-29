@@ -766,12 +766,16 @@ function showApp(): void {
     const newPath = ensureNoteExt(trimmed);
     try {
       const resolved = await renameFile(oldPath, newPath);
-      if (currentPath === oldPath) {
-        currentPath = resolved;
+      const wasActive = currentPath === oldPath;
+      if (wasActive) {
+        // Reset currentPath so openFile's "same path" guard doesn't skip the
+        // reload — needed because .md→.base (or vice versa) switches view
+        // modes and the old editor/preview content would otherwise linger.
+        currentPath = null;
         activePathRef.current = resolved;
-        titleEl.textContent = displayName(resolved);
       }
       renderTree(treeEl, openFile, activePathRef);
+      if (wasActive) await openFile(resolved);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Rename failed");
     }
