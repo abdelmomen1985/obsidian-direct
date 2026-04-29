@@ -59,6 +59,10 @@ function ensureBaseExt(path: string): string {
   return /\.base$/i.test(path) ? path : `${path}.base`;
 }
 
+function isBasePath(path: string | null | undefined): path is string {
+  return !!path && /\.base$/i.test(path);
+}
+
 function joinPath(dir: string, name: string): string {
   if (!dir) return name;
   return `${dir.replace(/\/$/, "")}/${name}`;
@@ -113,6 +117,11 @@ function showApp(): void {
           <button id="view-btn" class="icon-btn" title="Toggle view (Ctrl+E)">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="4" width="18" height="16" rx="1"/><line x1="12" y1="4" x2="12" y2="20"/>
+            </svg>
+          </button>
+          <button id="rsb-toggle-top" class="icon-btn" title="Toggle right sidebar" aria-label="Toggle right sidebar">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/>
             </svg>
           </button>
           <button id="theme-btn" class="icon-btn" title="Switch theme">
@@ -234,12 +243,16 @@ function showApp(): void {
     });
   });
 
-  // Toggle right sidebar visibility
+  // Toggle right sidebar visibility — invokable from inside the sidebar,
+  // from a persistent button in the topbar (so it stays reachable when the
+  // sidebar is collapsed to 0 width), and from the command palette.
   let rsbVisible = true;
-  document.getElementById("rsb-toggle")!.addEventListener("click", () => {
+  function toggleRightSidebar(): void {
     rsbVisible = !rsbVisible;
     rightSidebar.classList.toggle("collapsed", !rsbVisible);
-  });
+  }
+  document.getElementById("rsb-toggle")!.addEventListener("click", toggleRightSidebar);
+  document.getElementById("rsb-toggle-top")!.addEventListener("click", toggleRightSidebar);
 
   // ── Editor ──────────────────────────────────────────────────────────────
   editorView = createEditor(
@@ -417,6 +430,12 @@ function showApp(): void {
         description: "Ctrl+K",
         action: () => openSearch(),
       },
+      {
+        id: "toggle-right-sidebar",
+        label: rsbVisible ? "Hide right sidebar" : "Show right sidebar",
+        description: "Outline / Backlinks / Tags panel",
+        action: () => toggleRightSidebar(),
+      },
     ];
   }
 
@@ -496,11 +515,11 @@ function showApp(): void {
   }
 
   function displayName(path: string): string {
-    return path.split("/").pop()?.replace(/\.(md|base)$/, "") ?? path;
+    return path.split("/").pop()?.replace(/\.(md|base)$/i, "") ?? path;
   }
 
   function cycleViewMode(): void {
-    if (currentPath?.endsWith(".base")) {
+    if (isBasePath(currentPath)) {
       const inSourceMode = !editorPaneEl.classList.contains("hidden");
       if (inSourceMode) {
         // Switch back to table view, saving first if needed
@@ -537,9 +556,10 @@ function showApp(): void {
   applyViewMode();
 
   async function switchToBaseSource(): Promise<void> {
-    if (!currentPath?.endsWith(".base")) return;
+    const path = currentPath;
+    if (!isBasePath(path)) return;
     try {
-      const content = await getFile(currentPath);
+      const content = await getFile(path);
       if (editorView) {
         setEditorContent(editorView, content);
         isDirty = false;
@@ -562,8 +582,12 @@ function showApp(): void {
     previewDebounce = null;
     // .base files render the structured view in the preview pane; never let
     // the markdown preview overwrite it.
-    if (currentPath?.endsWith(".base")) return;
+    if (isBasePath(currentPath)) return;
+    const pathAtSchedule = currentPath;
     previewDebounce = setTimeout(() => {
+      // If the user switched to a different (or .base) file during the debounce,
+      // skip the render so we don't clobber the other file's pane contents.
+      if (currentPath !== pathAtSchedule || isBasePath(currentPath)) return;
       const { html, isRtl } = renderMarkdown(doc);
       previewEl.innerHTML = html;
       previewEl.setAttribute("dir", isRtl ? "rtl" : "ltr");
@@ -614,7 +638,20 @@ function showApp(): void {
     setStatus("idle");
 
     // .base files open in table view with optional source editing
-    if (path.endsWith(".base")) {
+    if (isBasePath(path)) {
+      // Swap the layout to "base view" up front so any in-flight markdown
+      // preview timers from the previously-open note don't race with this
+      // file's table rendering.
+      if (previewDebounce) {
+        clearTimeout(previewDebounce);
+        previewDebounce = null;
+      }
+      editorPaneEl.classList.add("hidden");
+      editorPaneEl.classList.remove("full-width");
+      previewPaneEl.classList.remove("hidden");
+      previewPaneEl.classList.add("full-width");
+      previewEl.innerHTML = "";
+
       // Load YAML into editor so source mode is ready immediately
       try {
         const content = await getFile(path);
@@ -626,12 +663,6 @@ function showApp(): void {
         setStatus("error", "Failed to load file");
         return;
       }
-
-      editorPaneEl.classList.add("hidden");
-      editorPaneEl.classList.remove("full-width");
-      previewPaneEl.classList.remove("hidden");
-      previewPaneEl.classList.add("full-width");
-      previewEl.innerHTML = "";
 
       const { el, refresh: refreshTable } = createBaseTableView(path, {
         onOpenNote: (notePath) => void openFile(notePath),

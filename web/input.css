@@ -112,7 +112,8 @@
     min-width: 0;
     white-space: nowrap;
   }
-  .preview-content { @apply p-6 max-w-2xl; }
+  /* Centered so preview-only (full-width) mode doesn't leave a wide empty gutter */
+  .preview-content { @apply p-6 max-w-3xl mx-auto; }
 
   /* Buttons */
   .icon-btn {
