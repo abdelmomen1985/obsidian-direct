@@ -768,6 +768,14 @@ function showApp(): void {
       const resolved = await renameFile(oldPath, newPath);
       const wasActive = currentPath === oldPath;
       if (wasActive) {
+        // Flush unsaved edits to the new path BEFORE we null currentPath.
+        // openFile's dirty-save guard (`if (currentPath && isDirty …)`) would
+        // otherwise skip the save and the upcoming reload-from-disk inside
+        // openFile would silently clobber the user's in-flight changes.
+        if (isDirty && editorView) {
+          currentPath = resolved;
+          await doSave();
+        }
         // Reset currentPath so openFile's "same path" guard doesn't skip the
         // reload — needed because .md→.base (or vice versa) switches view
         // modes and the old editor/preview content would otherwise linger.
