@@ -90,7 +90,7 @@ function countWords(text: string): number {
 }
 
 // ─── Main app ───────────────────────────────────────────────────────────────
-function showApp(): void {
+function showApp(restorePath?: string): void {
   const curLocale = getLocale();
   app.innerHTML = `
     <div class="layout">
@@ -526,13 +526,28 @@ function showApp(): void {
     langBtn.setAttribute("aria-expanded", String(!open));
   });
   langMenu.querySelectorAll<HTMLButtonElement>("[data-lang]").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const code = btn.dataset["lang"] as Locale | undefined;
       if (!code) return;
       if (code === getLocale()) { closeLangMenu(); return; }
+      // Flush any pending save before re-rendering, otherwise the debounced
+      // save timer would fire AFTER showApp() replaces the editor view and
+      // overwrite the file with the new (empty) editor's contents.
+      const pathToRestore = currentPath;
+      if (saveTimer) {
+        clearTimeout(saveTimer);
+        saveTimer = null;
+      }
+      if (pathToRestore && isDirty && editorView) {
+        await doSave();
+      }
+      // Reset module-level state so openFile() inside the re-rendered
+      // showApp() doesn't short-circuit on its "same path" guard.
+      currentPath = null;
+      isDirty = false;
+      activePathRef.current = "";
       setLocale(code);
-      // Re-render the entire app so all text reflects the new locale.
-      showApp();
+      showApp(pathToRestore ?? undefined);
     });
   });
   document.addEventListener("click", (e) => {
@@ -866,6 +881,11 @@ function showApp(): void {
         alert(err instanceof Error ? err.message : t("alert.dailyFailed"));
       }
     }
+  }
+
+  // ── Restore file after locale switch re-render ────────────────────────
+  if (restorePath) {
+    void openFile(restorePath);
   }
 }
 
