@@ -9,6 +9,7 @@ import {
   formatColumnName,
 } from "./base-cell.ts";
 import type { BaseTableCallbacks } from "./base-table.ts";
+import { t } from "../i18n.ts";
 
 /**
  * Build a card-list (a.k.a. list/gallery) view for a Base view definition.
@@ -96,7 +97,7 @@ export function buildCardList(
   if (notes.length === 0) {
     const empty = document.createElement("div");
     empty.className = "base-card-empty";
-    empty.textContent = "No matching notes";
+    empty.textContent = t("base.noMatching");
     grid.appendChild(empty);
   }
 

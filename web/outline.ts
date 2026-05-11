@@ -1,3 +1,5 @@
+import { t } from "./i18n.ts";
+
 export interface OutlineHeading {
   level: number;
   text: string;
@@ -52,7 +54,7 @@ export function createOutlinePanel(
   const el = document.createElement("div");
   el.className = "outline-panel";
   el.innerHTML = `
-    <div class="outline-header">Outline</div>
+    <div class="outline-header">${t("panel.outline")}</div>
     <div class="outline-list"></div>
   `;
 
@@ -61,7 +63,7 @@ export function createOutlinePanel(
   function update(content: string): void {
     const headings = parseHeadings(content);
     if (headings.length === 0) {
-      listEl.innerHTML = '<div class="outline-empty">No headings</div>';
+      listEl.innerHTML = `<div class="outline-empty">${t("panel.outlineEmpty")}</div>`;
       return;
     }
 
@@ -73,14 +75,14 @@ export function createOutlinePanel(
       item.className = "outline-item";
       item.style.paddingLeft = `${(h.level - minLevel) * 14 + 8}px`;
       item.textContent = h.text;
-      item.title = `Line ${h.line}`;
+      item.title = t("panel.outlineLineTitle", { line: h.line });
       item.addEventListener("click", () => onJumpToLine(h.line));
       listEl.appendChild(item);
     }
   }
 
   function clear(): void {
-    listEl.innerHTML = '<div class="outline-empty">No file open</div>';
+    listEl.innerHTML = `<div class="outline-empty">${t("panel.outlineNoFile")}</div>`;
   }
 
   return { el, update, clear };

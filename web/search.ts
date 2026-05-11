@@ -1,4 +1,5 @@
 import { search, SearchResult } from "./api.ts";
+import { t } from "./i18n.ts";
 
 export function createSearchPanel(
   onSelect: (path: string, line: number) => void
@@ -8,8 +9,8 @@ export function createSearchPanel(
   el.innerHTML = `
     <div class="search-inner">
       <div class="search-header">
-        <input type="text" id="search-input" placeholder="Search notes… (min 2 chars)" autocomplete="off" />
-        <button id="search-close" title="Close (Esc)">✕</button>
+        <input type="text" id="search-input" placeholder="${t("search.placeholder")}" autocomplete="off" />
+        <button id="search-close" title="${t("search.closeTitle")}">✕</button>
       </div>
       <div id="search-results" class="search-results"></div>
     </div>
@@ -32,18 +33,18 @@ export function createSearchPanel(
   });
 
   async function runSearch(q: string): Promise<void> {
-    resultsEl.innerHTML = '<div class="search-loading">Searching…</div>';
+    resultsEl.innerHTML = `<div class="search-loading">${t("search.searching")}</div>`;
     try {
       const results = await search(q);
       renderResults(results, q);
     } catch {
-      resultsEl.innerHTML = '<div class="search-error">Search failed</div>';
+      resultsEl.innerHTML = `<div class="search-error">${t("search.failed")}</div>`;
     }
   }
 
   function renderResults(results: SearchResult[], q: string): void {
     if (results.length === 0) {
-      resultsEl.innerHTML = '<div class="search-empty">No results</div>';
+      resultsEl.innerHTML = `<div class="search-empty">${t("search.empty")}</div>`;
       return;
     }
 

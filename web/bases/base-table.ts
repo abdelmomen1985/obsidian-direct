@@ -21,6 +21,7 @@ import {
   type SortState,
 } from "./base-cell.ts";
 import { buildCardList } from "./base-card-view.ts";
+import { t } from "../i18n.ts";
 
 export interface BaseTableCallbacks {
   onOpenNote: (path: string) => void;
@@ -47,19 +48,19 @@ export function createBaseTableView(
 
   const addColBtn = document.createElement("button");
   addColBtn.className = "base-toolbar-btn icon-btn";
-  addColBtn.title = "Add a column to this view";
+  addColBtn.title = t("base.addColumnTitle");
   addColBtn.innerHTML = `
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
     </svg>
-    Add column
+    ${t("base.addColumn")}
   `;
   addColBtn.addEventListener("click", () => void promptAddColumn());
   toolbar.appendChild(addColBtn);
 
   const addViewBtn = document.createElement("button");
   addViewBtn.className = "base-toolbar-btn icon-btn";
-  addViewBtn.title = "Add a new view (table, list/cards, gallery)";
+  addViewBtn.title = t("base.addViewTitle");
   addViewBtn.innerHTML = `
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <rect x="3" y="3" width="7" height="7" rx="1"/>
@@ -68,19 +69,19 @@ export function createBaseTableView(
       <line x1="17.5" y1="14" x2="17.5" y2="21"/>
       <line x1="14" y1="17.5" x2="21" y2="17.5"/>
     </svg>
-    Add view
+    ${t("base.addView")}
   `;
   addViewBtn.addEventListener("click", () => void promptAddView());
   toolbar.appendChild(addViewBtn);
 
   const filterBtn = document.createElement("button");
   filterBtn.className = "base-toolbar-btn icon-btn";
-  filterBtn.title = "Manage filters";
+  filterBtn.title = t("base.manageFilters");
   filterBtn.innerHTML = `
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
     </svg>
-    Filter
+    ${t("base.filter")}
   `;
   filterBtn.addEventListener("click", () => toggleFilterPanel());
   toolbar.appendChild(filterBtn);
@@ -105,7 +106,7 @@ export function createBaseTableView(
     baseSection.className = "base-filter-section";
     const baseTitle = document.createElement("div");
     baseTitle.className = "base-filter-section-title";
-    baseTitle.textContent = "Base filters";
+    baseTitle.textContent = t("base.baseFilters");
     baseSection.appendChild(baseTitle);
     renderFilterConditions(baseSection, def.filters, "base");
     filterPanel.appendChild(baseSection);
@@ -116,7 +117,7 @@ export function createBaseTableView(
       viewSection.className = "base-filter-section";
       const viewTitle = document.createElement("div");
       viewTitle.className = "base-filter-section-title";
-      viewTitle.textContent = `View filters (${view.name})`;
+      viewTitle.textContent = t("base.viewFiltersOf", { name: view.name });
       viewSection.appendChild(viewTitle);
       renderFilterConditions(viewSection, view.filter ?? null, "view");
       filterPanel.appendChild(viewSection);
@@ -151,7 +152,7 @@ export function createBaseTableView(
         if (tracked.arrayKey === "and") {
           const editBtn = document.createElement("button");
           editBtn.className = "base-filter-action-btn";
-          editBtn.title = "Edit filter";
+          editBtn.title = t("base.editFilter");
           editBtn.textContent = "✎";
           editBtn.addEventListener("click", () => {
             void openFilterDialog(tracked.condition, scope).then((patch) => {
@@ -169,7 +170,7 @@ export function createBaseTableView(
 
           const removeBtn = document.createElement("button");
           removeBtn.className = "base-filter-action-btn base-filter-remove-btn";
-          removeBtn.title = "Remove filter";
+          removeBtn.title = t("base.removeFilter");
           removeBtn.textContent = "×";
           removeBtn.addEventListener("click", () => {
             void applyMutation({
@@ -188,13 +189,13 @@ export function createBaseTableView(
     } else {
       const empty = document.createElement("div");
       empty.className = "base-filter-empty";
-      empty.textContent = "No filters";
+      empty.textContent = t("base.noFilters");
       container.appendChild(empty);
     }
 
     const addBtn = document.createElement("button");
     addBtn.className = "base-filter-add-btn";
-    addBtn.textContent = "+ Add filter";
+    addBtn.textContent = t("base.addFilter");
     addBtn.addEventListener("click", () => {
       void openFilterDialog(null, scope).then((patch) => {
         if (!patch) return;
@@ -212,13 +213,13 @@ export function createBaseTableView(
   if (callbacks.onToggleSource) {
     const sourceBtn = document.createElement("button");
     sourceBtn.className = "base-source-btn icon-btn";
-    sourceBtn.title = "Edit source YAML (Ctrl+E)";
+    sourceBtn.title = t("base.sourceTitle");
     sourceBtn.innerHTML = `
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <polyline points="16 18 22 12 16 6"/>
         <polyline points="8 6 2 12 8 18"/>
       </svg>
-      Source
+      ${t("base.source")}
     `;
     sourceBtn.addEventListener("click", () => callbacks.onToggleSource?.());
     toolbar.appendChild(sourceBtn);
@@ -232,12 +233,12 @@ export function createBaseTableView(
 
   async function refresh(): Promise<void> {
     try {
-      container.innerHTML = '<div class="base-loading">Loading base…</div>';
+      container.innerHTML = `<div class="base-loading">${t("base.loading")}</div>`;
       const response = await queryBase(basePath, currentViewIndex);
       lastResponse = response;
       render(response);
     } catch (err) {
-      container.innerHTML = `<div class="base-error">${err instanceof Error ? err.message : "Failed to load base"}</div>`;
+      container.innerHTML = `<div class="base-error">${err instanceof Error ? err.message : t("base.failedToLoad")}</div>`;
     }
   }
 
@@ -247,9 +248,9 @@ export function createBaseTableView(
       baseMtime = result.mtime;
       await refresh();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to update base";
+      const msg = err instanceof Error ? err.message : t("base.updateFailed");
       if (msg.startsWith("CONFLICT:")) {
-        alert("This base file changed externally. Reloading.");
+        alert(t("base.fileChangedExt"));
         await refresh();
       } else {
         alert(msg);
@@ -284,7 +285,7 @@ export function createBaseTableView(
   }
 
   async function removeColumnAt(column: string): Promise<void> {
-    if (!confirm(`Remove column "${column}" from this view?`)) return;
+    if (!confirm(t("base.removeColConfirm", { column }))) return;
     await applyMutation({
       type: "removeColumn",
       viewIndex: currentViewIndex,
@@ -318,7 +319,7 @@ export function createBaseTableView(
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
       </svg>
-      Filter${totalFilters > 0 ? ` (${totalFilters})` : ""}
+      ${totalFilters > 0 ? t("base.filterCount", { count: totalFilters }) : t("base.filter")}
     `;
     if (totalFilters > 0) filterBtn.classList.add("base-filter-active");
     else filterBtn.classList.remove("base-filter-active");
@@ -372,8 +373,8 @@ export function createBaseTableView(
             <line x1="15" y1="9" x2="9" y2="15"/>
           </svg>
         </div>
-        <div class="base-unsupported-text">${escapeHtml(view._unsupportedReason ?? `View type "${view.type}" is not yet supported`)}</div>
-        <div class="base-unsupported-hint">The view definition is preserved and will work when this view type is implemented.</div>
+        <div class="base-unsupported-text">${escapeHtml(view._unsupportedReason ?? t("base.viewUnsupported", { type: view.type }))}</div>
+        <div class="base-unsupported-hint">${escapeHtml(t("base.viewUnsupportedHint"))}</div>
       `;
       container.appendChild(placeholder);
       return;
@@ -388,7 +389,7 @@ export function createBaseTableView(
     // info bar
     const infoBar = document.createElement("div");
     infoBar.className = "base-info-bar";
-    infoBar.textContent = `${notes.length} of ${total} notes`;
+    infoBar.textContent = t("base.notesCount", { shown: notes.length, total });
     container.appendChild(infoBar);
 
     const isCardLike = view?.type === "list" || view?.type === "gallery";
@@ -449,7 +450,7 @@ export function createBaseTableView(
     // Trailing "+" cell to add a column inline at end-of-row
     const addTh = document.createElement("th");
     addTh.className = "base-th base-th-add";
-    addTh.title = "Add column";
+    addTh.title = t("base.addColumn");
     addTh.textContent = "+";
     addTh.addEventListener("click", () => void promptAddColumn());
     headerRow.appendChild(addTh);
@@ -498,7 +499,7 @@ export function createBaseTableView(
     // header-options menu (⋮)
     const menuBtn = document.createElement("button");
     menuBtn.className = "base-th-menu";
-    menuBtn.title = "Column options";
+    menuBtn.title = t("base.columnOptions");
     menuBtn.innerHTML = "⋮";
     menuBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -520,32 +521,32 @@ export function createBaseTableView(
 
     const isFileCol = column.startsWith("file.") || column.startsWith("formula:");
 
-    addMenuItem(menu, "Sort ascending", () => {
+    addMenuItem(menu, t("base.sortAsc"), () => {
       currentSort = { column, direction: "asc" };
       if (lastResponse) render(lastResponse);
     });
-    addMenuItem(menu, "Sort descending", () => {
+    addMenuItem(menu, t("base.sortDesc"), () => {
       currentSort = { column, direction: "desc" };
       if (lastResponse) render(lastResponse);
     });
-    addMenuItem(menu, "Clear sort", () => {
+    addMenuItem(menu, t("base.clearSort"), () => {
       currentSort = null;
       if (lastResponse) render(lastResponse);
     });
 
     if (!isFileCol) {
-      addMenuItem(menu, propDef ? "Edit property…" : "Set property metadata…", () => {
+      addMenuItem(menu, propDef ? t("base.editProperty") : t("base.setPropertyMeta"), () => {
         void editPropertyMeta(column, propDef);
       });
     }
 
-    addMenuItem(menu, "Remove from view", () => {
+    addMenuItem(menu, t("base.removeFromView"), () => {
       void removeColumnAt(column);
     });
 
     if (!isFileCol) {
-      addMenuItem(menu, "Delete property (and column)", () => {
-        if (confirm(`Delete property "${column}" from base definition? This will not modify any notes.`)) {
+      addMenuItem(menu, t("base.deleteProperty"), () => {
+        if (confirm(t("base.deletePropConfirm", { column }))) {
           void applyMutation({ type: "removeProperty", name: column });
         }
       });
@@ -698,21 +699,21 @@ function pickViewDefinition(): Promise<{ name: string; type: string } | null> {
     const modal = document.createElement("div");
     modal.className = "base-modal";
     modal.innerHTML = `
-      <div class="base-modal-title">Add view</div>
+      <div class="base-modal-title">${escapeHtml(t("base.modal.addView"))}</div>
       <div class="base-modal-body">
-        <label class="base-modal-label">Name</label>
-        <input class="base-modal-input" data-field="name" type="text" placeholder="e.g. Cards, Backlog" value="New view">
-        <label class="base-modal-label">View type</label>
+        <label class="base-modal-label">${escapeHtml(t("base.modal.viewName"))}</label>
+        <input class="base-modal-input" data-field="name" type="text" placeholder="${escapeHtml(t("base.modal.viewNamePh"))}" value="${escapeHtml(t("base.modal.viewNameDefault"))}">
+        <label class="base-modal-label">${escapeHtml(t("base.modal.viewType"))}</label>
         <select class="base-modal-input" data-field="type">
-          <option value="table">Table</option>
-          <option value="list">Card list</option>
-          <option value="gallery">Gallery</option>
+          <option value="table">${escapeHtml(t("base.modal.viewTypeTable"))}</option>
+          <option value="list">${escapeHtml(t("base.modal.viewTypeList"))}</option>
+          <option value="gallery">${escapeHtml(t("base.modal.viewTypeGallery"))}</option>
         </select>
-        <div class="base-modal-hint">Card list and gallery render each note as a card. You can switch the type later by editing source.</div>
+        <div class="base-modal-hint">${escapeHtml(t("base.modal.viewTypeHint"))}</div>
       </div>
       <div class="base-modal-actions">
-        <button class="base-modal-cancel">Cancel</button>
-        <button class="base-modal-ok">Add</button>
+        <button class="base-modal-cancel">${escapeHtml(t("base.cancel"))}</button>
+        <button class="base-modal-ok">${escapeHtml(t("base.add"))}</button>
       </div>
     `;
     overlay.appendChild(modal);
@@ -750,18 +751,18 @@ function pickColumnName(suggestions: string[]): Promise<string | null> {
     const modal = document.createElement("div");
     modal.className = "base-modal";
     modal.innerHTML = `
-      <div class="base-modal-title">Add column</div>
+      <div class="base-modal-title">${escapeHtml(t("base.modal.addColumn"))}</div>
       <div class="base-modal-body">
-        <label class="base-modal-label">Property name</label>
-        <input class="base-modal-input" type="text" list="base-col-suggestions" placeholder="e.g. status, due, file.mtime">
+        <label class="base-modal-label">${escapeHtml(t("base.modal.propertyName"))}</label>
+        <input class="base-modal-input" type="text" list="base-col-suggestions" placeholder="${escapeHtml(t("base.modal.propertyNamePh"))}">
         <datalist id="base-col-suggestions">
           ${suggestions.map((s) => `<option value="${escapeHtml(s)}"></option>`).join("")}
         </datalist>
-        <div class="base-modal-hint">Use <code>file.*</code> for file metadata, <code>formula:*</code> for formulas, or any frontmatter key.</div>
+        <div class="base-modal-hint">${escapeHtml(t("base.modal.columnHint", { file: "file.*", formula: "formula:*" }))}</div>
       </div>
       <div class="base-modal-actions">
-        <button class="base-modal-cancel">Cancel</button>
-        <button class="base-modal-ok">Add</button>
+        <button class="base-modal-cancel">${escapeHtml(t("base.cancel"))}</button>
+        <button class="base-modal-ok">${escapeHtml(t("base.add"))}</button>
       </div>
     `;
     overlay.appendChild(modal);
@@ -806,24 +807,24 @@ function openPropertyDialog(
     const initHidden = current?.hidden === true;
 
     modal.innerHTML = `
-      <div class="base-modal-title">${current ? "Edit" : "Add"} property: ${escapeHtml(name)}</div>
+      <div class="base-modal-title">${escapeHtml(current ? t("base.modal.editPropTitle", { name }) : t("base.modal.addPropTitle", { name }))}</div>
       <div class="base-modal-body">
-        <label class="base-modal-label">Name</label>
+        <label class="base-modal-label">${escapeHtml(t("base.modal.viewName"))}</label>
         <input class="base-modal-input" data-field="name" type="text" value="${escapeHtml(name)}">
-        <label class="base-modal-label">Label (optional)</label>
+        <label class="base-modal-label">${escapeHtml(t("base.modal.propLabel"))}</label>
         <input class="base-modal-input" data-field="label" type="text" value="${escapeHtml(initLabel)}">
-        <label class="base-modal-label">Type (optional)</label>
-        <input class="base-modal-input" data-field="type" type="text" placeholder="text, number, date, list, …" value="${escapeHtml(initType)}">
-        <label class="base-modal-label">Width (px, optional)</label>
+        <label class="base-modal-label">${escapeHtml(t("base.modal.propType"))}</label>
+        <input class="base-modal-input" data-field="type" type="text" placeholder="${escapeHtml(t("base.modal.propTypePh"))}" value="${escapeHtml(initType)}">
+        <label class="base-modal-label">${escapeHtml(t("base.modal.propWidth"))}</label>
         <input class="base-modal-input" data-field="width" type="number" min="40" value="${escapeHtml(initWidth)}">
         <label class="base-modal-checkbox-row">
           <input type="checkbox" data-field="hidden" ${initHidden ? "checked" : ""}>
-          Hidden by default
+          ${escapeHtml(t("base.modal.propHidden"))}
         </label>
       </div>
       <div class="base-modal-actions">
-        <button class="base-modal-cancel">Cancel</button>
-        <button class="base-modal-ok">Save</button>
+        <button class="base-modal-cancel">${escapeHtml(t("base.cancel"))}</button>
+        <button class="base-modal-ok">${escapeHtml(t("base.save"))}</button>
       </div>
     `;
     overlay.appendChild(modal);
@@ -886,9 +887,9 @@ function startCellEdit(
     } catch (err) {
       td.textContent = formatValue(currentValue);
       if (err instanceof Error && err.message.startsWith("CONFLICT:")) {
-        alert("This file was modified externally. Please refresh.");
+        alert(t("base.fileModifiedExt"));
       } else {
-        alert(err instanceof Error ? err.message : "Update failed");
+        alert(err instanceof Error ? err.message : t("base.cellUpdateFailed"));
       }
     }
   };
@@ -999,26 +1000,24 @@ function openFilterDialog(
     const operators = ["eq", "neq", "gt", "lt", "gte", "lte", "contains", "exists", "empty"];
 
     modal.innerHTML = `
-      <div class="base-modal-title">${current ? "Edit" : "Add"} filter</div>
+      <div class="base-modal-title">${escapeHtml(current ? t("base.modal.editFilterTitle") : t("base.modal.addFilterTitle"))}</div>
       <div class="base-modal-body">
-        <label class="base-modal-label">Property</label>
+        <label class="base-modal-label">${escapeHtml(t("base.modal.filterProperty"))}</label>
         <input class="base-modal-input" data-field="property" type="text"
-          placeholder='e.g. status, file.inFolder("Folder"), file.hasTag("tag")'
+          placeholder='${escapeHtml(t("base.modal.filterPropertyPh"))}'
           value="${escapeHtml(initProp)}">
-        <label class="base-modal-label">Operator</label>
+        <label class="base-modal-label">${escapeHtml(t("base.modal.filterOperator"))}</label>
         <select class="base-modal-input" data-field="operator">
           ${operators.map((op) => `<option value="${op}" ${op === initOp ? "selected" : ""}>${OPERATOR_LABELS[op] ?? op} (${op})</option>`).join("")}
         </select>
-        <label class="base-modal-label" data-value-label>Value</label>
+        <label class="base-modal-label" data-value-label>${escapeHtml(t("base.modal.filterValue"))}</label>
         <input class="base-modal-input" data-field="value" type="text"
-          placeholder="Filter value" value="${escapeHtml(initVal)}">
-        <div class="base-modal-hint">
-          Use <code>file.inFolder("path")</code>, <code>file.hasTag("tag")</code>, or any frontmatter property.
-        </div>
+          placeholder="${escapeHtml(t("base.modal.filterValuePh"))}" value="${escapeHtml(initVal)}">
+        <div class="base-modal-hint">${escapeHtml(t("base.modal.filterHint", { inFolder: 'file.inFolder("path")', hasTag: 'file.hasTag("tag")' }))}</div>
       </div>
       <div class="base-modal-actions">
-        <button class="base-modal-cancel">Cancel</button>
-        <button class="base-modal-ok">${current ? "Save" : "Add"}</button>
+        <button class="base-modal-cancel">${escapeHtml(t("base.cancel"))}</button>
+        <button class="base-modal-ok">${escapeHtml(current ? t("base.save") : t("base.add"))}</button>
       </div>
     `;
     overlay.appendChild(modal);

@@ -2,6 +2,7 @@ import type { BaseTableCallbacks } from "./base-table.ts";
 import type { IndexedNote, QueryResponse } from "./base-api.ts";
 import { queryBaseInline } from "./base-api.ts";
 import { buildCardList } from "./base-card-view.ts";
+import { t } from "../i18n.ts";
 
 export function processEmbeddedBases(
   container: HTMLElement,
@@ -30,9 +31,9 @@ export function processEmbeddedBases(
           <line x1="3" y1="9" x2="21" y2="9"/>
           <line x1="9" y1="3" x2="9" y2="21"/>
         </svg>
-        Embedded Base
+        ${t("base.embedded")}
       </span>
-      <button class="base-embedded-toggle" title="Toggle source">
+      <button class="base-embedded-toggle" title="${t("base.embeddedToggleSrc")}">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="16 18 22 12 16 6"/>
           <polyline points="8 6 2 12 8 18"/>
@@ -44,7 +45,7 @@ export function processEmbeddedBases(
     // rendered view
     const viewContainer = document.createElement("div");
     viewContainer.className = "base-embedded-view";
-    viewContainer.innerHTML = '<div class="base-loading">Loading embedded base…</div>';
+    viewContainer.innerHTML = `<div class="base-loading">${t("base.embeddedLoading")}</div>`;
     wrapper.appendChild(viewContainer);
 
     // source view (hidden by default)
@@ -80,7 +81,7 @@ async function loadEmbeddedBase(
   } catch (err) {
     container.innerHTML = `
       <div class="base-embedded-info">
-        <p>Failed to render embedded base: ${escapeHtml(err instanceof Error ? err.message : String(err))}</p>
+        <p>${escapeHtml(t("base.embeddedFailed", { error: err instanceof Error ? err.message : String(err) }))}</p>
       </div>
     `;
   }
@@ -109,7 +110,7 @@ function renderEmbeddedTable(
 
   const info = document.createElement("div");
   info.className = "base-info-bar";
-  info.textContent = `${notes.length} of ${total} notes`;
+  info.textContent = t("base.notesCount", { shown: notes.length, total });
   container.appendChild(info);
 
   const columns = resolveColumnsForEmbed(response, view?.columns);
