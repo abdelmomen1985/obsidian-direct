@@ -866,4 +866,61 @@
   .markdown-body .task-checkbox:hover {
     border-color: var(--ob-accent) !important;
   }
+
+  /* ── Language switcher ───────────────────────────────────────────────── */
+  .lang-switcher {
+    position: relative;
+    display: inline-flex;
+  }
+  .lang-switcher .icon-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  #lang-btn-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+  .lang-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    min-width: 140px;
+    background: var(--ob-bg2);
+    border: 1px solid var(--ob-border);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    padding: 4px;
+    z-index: 1000;
+  }
+  .lang-menu.hidden { display: none; }
+  .lang-menu-item {
+    display: block;
+    width: 100%;
+    padding: 6px 10px;
+    text-align: start;
+    border-radius: 4px;
+    color: var(--ob-text);
+    font-size: 13px;
+  }
+  .lang-menu-item:hover { background: var(--ob-surface); }
+  .lang-menu-item.active {
+    background: var(--ob-accent);
+    color: white;
+  }
+  /* In RTL the menu should align to the start (right) of the button. */
+  [dir="rtl"] .lang-menu { right: auto; left: 0; }
+
+  /* ── RTL adjustments ─────────────────────────────────────────────────── */
+  [dir="rtl"] body { font-family: "Cairo", "Geist", ui-sans-serif, system-ui, sans-serif; }
+  /* Keep code / monospace blocks LTR even when the surrounding UI is RTL. */
+  [dir="rtl"] code,
+  [dir="rtl"] pre,
+  [dir="rtl"] .cm-editor,
+  [dir="rtl"] .save-status,
+  [dir="rtl"] .word-count { direction: ltr; }
+  [dir="rtl"] .save-status,
+  [dir="rtl"] .word-count { unicode-bidi: isolate; }
 }

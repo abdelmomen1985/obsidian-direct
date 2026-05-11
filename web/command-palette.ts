@@ -1,5 +1,6 @@
 import { moveFile } from "./api.ts";
 import { getAllDirPaths } from "./tree.ts";
+import { t } from "./i18n.ts";
 
 export interface Command {
   id: string;
@@ -35,7 +36,7 @@ export function createCommandPalette(): CommandPaletteHandle {
   const input = document.createElement("input");
   input.id = "cmd-input";
   input.type = "text";
-  input.placeholder = "Type a command…";
+  input.placeholder = t("cmd.placeholder");
   input.autocomplete = "off";
   header.appendChild(input);
 
@@ -60,7 +61,7 @@ export function createCommandPalette(): CommandPaletteHandle {
     if (filtered.length === 0) {
       const empty = document.createElement("div");
       empty.className = "cmd-empty";
-      empty.textContent = "No matching commands";
+      empty.textContent = t("cmd.empty");
       list.appendChild(empty);
       return;
     }
@@ -184,7 +185,7 @@ export function openMoveFilePalette(
   const input = document.createElement("input");
   input.type = "text";
   input.id = "move-input";
-  input.placeholder = `Move "${filePath.split("/").pop()}" to directory…`;
+  input.placeholder = t("cmd.movePlaceholder", { name: filePath.split("/").pop() ?? filePath });
   input.autocomplete = "off";
   header.appendChild(input);
 
@@ -200,7 +201,7 @@ export function openMoveFilePalette(
     filtered.forEach((dir, i) => {
       const item = document.createElement("button");
       item.className = "cmd-item" + (i === selectedIdx ? " selected" : "");
-      item.textContent = dir === "" ? "(root)" : dir;
+      item.textContent = dir === "" ? t("cmd.moveRoot") : dir;
       item.addEventListener("mouseenter", () => { selectedIdx = i; render(); });
       item.addEventListener("click", () => pickDir(dir));
       list.appendChild(item);
@@ -221,7 +222,7 @@ export function openMoveFilePalette(
       const newPath = await moveFile(filePath, destDir);
       onMoved(filePath, newPath);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Move failed");
+      alert(err instanceof Error ? err.message : t("tree.moveFailed"));
     }
   }
 

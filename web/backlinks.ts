@@ -1,4 +1,5 @@
 import { getBacklinks, BacklinkResult } from "./api.ts";
+import { t } from "./i18n.ts";
 
 export interface BacklinksHandle {
   el: HTMLElement;
@@ -12,25 +13,25 @@ export function createBacklinksPanel(
   const el = document.createElement("div");
   el.className = "backlinks-panel";
   el.innerHTML = `
-    <div class="backlinks-header">Backlinks</div>
+    <div class="backlinks-header">${t("panel.backlinks")}</div>
     <div class="backlinks-list"></div>
   `;
 
   const listEl = el.querySelector<HTMLElement>(".backlinks-list")!;
 
   async function update(path: string): Promise<void> {
-    listEl.innerHTML = '<div class="backlinks-loading">Loading…</div>';
+    listEl.innerHTML = `<div class="backlinks-loading">${t("panel.backlinksLoading")}</div>`;
     try {
       const results = await getBacklinks(path);
       render(results);
     } catch {
-      listEl.innerHTML = '<div class="backlinks-empty">Failed to load</div>';
+      listEl.innerHTML = `<div class="backlinks-empty">${t("panel.backlinksFailed")}</div>`;
     }
   }
 
   function render(results: BacklinkResult[]): void {
     if (results.length === 0) {
-      listEl.innerHTML = '<div class="backlinks-empty">No backlinks</div>';
+      listEl.innerHTML = `<div class="backlinks-empty">${t("panel.backlinksEmpty")}</div>`;
       return;
     }
 
@@ -49,7 +50,7 @@ export function createBacklinksPanel(
   }
 
   function clear(): void {
-    listEl.innerHTML = '<div class="backlinks-empty">No file open</div>';
+    listEl.innerHTML = `<div class="backlinks-empty">${t("panel.backlinksNoFile")}</div>`;
   }
 
   return { el, update, clear };

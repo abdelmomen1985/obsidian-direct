@@ -1,4 +1,5 @@
 import { login } from "./api.ts";
+import { t } from "./i18n.ts";
 
 export function renderLogin(onSuccess: () => void): HTMLElement {
   const el = document.createElement("div");
@@ -10,14 +11,14 @@ export function renderLogin(onSuccess: () => void): HTMLElement {
           <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
         </svg>
       </div>
-      <h1 class="font-semibold text-ob-text mb-7" style="font-size:20px;">Obsidian Direct</h1>
+      <h1 class="font-semibold text-ob-text mb-7" style="font-size:20px;">${t("login.title")}</h1>
       <form id="login-form">
-        <div class="text-left mb-4">
-          <label for="password" class="block text-ob-muted mb-1.5 text-xs">Password</label>
+        <div class="text-start mb-4">
+          <label for="password" class="block text-ob-muted mb-1.5 text-xs">${t("login.password")}</label>
           <input
             type="password" id="password"
             autocomplete="current-password"
-            placeholder="Enter your password"
+            placeholder="${t("login.passwordPlaceholder")}"
             class="w-full bg-ob-bg3 border border-ob-border rounded-md text-ob-text outline-none focus:border-ob-accent transition-colors duration-150 px-3 py-2 text-sm"
             style="font-family:inherit;"
           />
@@ -26,7 +27,7 @@ export function renderLogin(onSuccess: () => void): HTMLElement {
         <button
           type="submit" id="login-btn"
           class="w-full bg-ob-accent text-white rounded-md font-semibold mt-1 py-[10px] text-sm transition-opacity duration-150 hover:opacity-85 disabled:opacity-50 disabled:cursor-not-allowed"
-        >Sign in</button>
+        >${t("login.signIn")}</button>
       </form>
     </div>
   `;
@@ -42,17 +43,17 @@ export function renderLogin(onSuccess: () => void): HTMLElement {
     if (!password) return;
 
     btn.disabled = true;
-    btn.textContent = "Signing in…";
+    btn.textContent = t("login.signingIn");
     errorEl.classList.add("hidden");
 
     try {
       await login(password);
       onSuccess();
     } catch (err) {
-      errorEl.textContent = err instanceof Error ? err.message : "Login failed";
+      errorEl.textContent = err instanceof Error ? err.message : t("login.failed");
       errorEl.classList.remove("hidden");
       btn.disabled = false;
-      btn.textContent = "Sign in";
+      btn.textContent = t("login.signIn");
       input.select();
     }
   });

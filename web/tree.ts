@@ -1,4 +1,5 @@
 import { TreeNode, getTree, deleteFile, moveFile } from "./api.ts";
+import { t } from "./i18n.ts";
 
 let lastTreeJson = "";
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
@@ -31,7 +32,7 @@ export function renderTree(
   const openPaths = getOpenDirPaths(container);
   const isEmpty = container.children.length === 0;
   if (isEmpty) {
-    container.innerHTML = '<div class="tree-loading">Loading…</div>';
+    container.innerHTML = `<div class="tree-loading">${t("tree.loading")}</div>`;
   }
 
   getTree()
@@ -44,7 +45,7 @@ export function renderTree(
     })
     .catch(() => {
       if (isEmpty) {
-        container.innerHTML = '<div class="tree-error">Failed to load files</div>';
+        container.innerHTML = `<div class="tree-error">${t("tree.loadFailed")}</div>`;
       }
     });
 }
@@ -131,20 +132,20 @@ function showMenu(x: number, y: number, items: MenuItem[]): void {
 
 function showFileContextMenu(x: number, y: number, filePath: string): void {
   showMenu(x, y, [
-    { label: "Rename…", action: () => callbacks.onRename?.(filePath) },
-    { label: "Duplicate", action: () => callbacks.onDuplicate?.(filePath) },
-    { label: "Move to…", action: () => callbacks.onMovePrompt?.(filePath) },
+    { label: t("tree.menuRename"), action: () => callbacks.onRename?.(filePath) },
+    { label: t("tree.menuDuplicate"), action: () => callbacks.onDuplicate?.(filePath) },
+    { label: t("tree.menuMove"), action: () => callbacks.onMovePrompt?.(filePath) },
     {
-      label: "Delete",
+      label: t("tree.menuDelete"),
       danger: true,
       action: async () => {
         const name = filePath.split("/").pop() ?? filePath;
-        if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+        if (!confirm(t("tree.deleteConfirm", { name }))) return;
         try {
           await deleteFile(filePath);
           callbacks.onDelete?.(filePath);
         } catch (err) {
-          alert(err instanceof Error ? err.message : "Delete failed");
+          alert(err instanceof Error ? err.message : t("tree.deleteFailed"));
         }
       },
     },
@@ -153,8 +154,8 @@ function showFileContextMenu(x: number, y: number, filePath: string): void {
 
 function showFolderContextMenu(x: number, y: number, dirPath: string): void {
   showMenu(x, y, [
-    { label: "New file here", action: () => callbacks.onNewFileHere?.(dirPath) },
-    { label: "New folder here", action: () => callbacks.onNewFolderHere?.(dirPath) },
+    { label: t("tree.menuNewFile"), action: () => callbacks.onNewFileHere?.(dirPath) },
+    { label: t("tree.menuNewFolder"), action: () => callbacks.onNewFolderHere?.(dirPath) },
   ]);
 }
 
@@ -220,7 +221,7 @@ function buildTreeEl(
           const newPath = await moveFile(src, node.path);
           callbacks.onMove?.(src, newPath);
         } catch (err) {
-          alert(err instanceof Error ? err.message : "Move failed");
+          alert(err instanceof Error ? err.message : t("tree.moveFailed"));
         }
       });
 

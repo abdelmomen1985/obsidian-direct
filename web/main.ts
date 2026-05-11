@@ -27,6 +27,9 @@ import { processEmbeddedBases } from "./bases/base-embedded.ts";
 import { createBacklinksPanel } from "./backlinks.ts";
 import { createOutlinePanel } from "./outline.ts";
 import { createTagsPane } from "./tags.ts";
+import { LOCALES, applyDirectionToDocument, getLocale, setLocale, t, type Locale } from "./i18n.ts";
+
+applyDirectionToDocument();
 
 const app = document.getElementById("app")!;
 
@@ -87,68 +90,84 @@ function countWords(text: string): number {
 }
 
 // ─── Main app ───────────────────────────────────────────────────────────────
-function showApp(): void {
+function showApp(restorePath?: string): void {
+  const curLocale = getLocale();
   app.innerHTML = `
     <div class="layout">
       <header class="topbar">
         <div class="topbar-left">
-          <button id="search-btn" title="Search (Ctrl+K)" class="icon-btn">
+          <button id="search-btn" title="${t("topbar.searchTitle")}" class="icon-btn">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
-            Search
+            ${t("topbar.search")}
           </button>
-          <button id="cmd-btn" title="Command Palette (Ctrl+P)" class="icon-btn">
+          <button id="cmd-btn" title="${t("topbar.commandsTitle")}" class="icon-btn">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="4 6 10 12 4 18"/><line x1="12" y1="18" x2="20" y2="18"/>
             </svg>
-            Commands
+            ${t("topbar.commands")}
           </button>
-          <button id="daily-btn" title="Open today's daily note" class="icon-btn">
+          <button id="daily-btn" title="${t("topbar.todayTitle")}" class="icon-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
               <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
             </svg>
-            Today
+            ${t("topbar.today")}
           </button>
         </div>
         <div class="topbar-center">
-          <span id="current-title" class="current-title">—</span>
+          <span id="current-title" class="current-title">${t("topbar.untitled")}</span>
         </div>
         <div class="topbar-right">
           <span id="word-count" class="word-count"></span>
           <span id="save-status" class="save-status"></span>
-          <button id="view-btn" class="icon-btn" title="Toggle view (Ctrl+E)">
+          <button id="view-btn" class="icon-btn" title="${t("topbar.toggleViewTitle")}">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="4" width="18" height="16" rx="1"/><line x1="12" y1="4" x2="12" y2="20"/>
             </svg>
           </button>
-          <button id="rsb-toggle-top" class="icon-btn" title="Toggle right sidebar" aria-label="Toggle right sidebar">
+          <button id="rsb-toggle-top" class="icon-btn" title="${t("topbar.toggleRsbTitle")}" aria-label="${t("topbar.toggleRsbTitle")}">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/>
             </svg>
           </button>
-          <button id="theme-btn" class="icon-btn" title="Switch theme">
+          <button id="theme-btn" class="icon-btn" title="${t("topbar.themeTitle")}">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
             </svg>
           </button>
-          <button id="logout-btn" class="icon-btn">Logout</button>
+          <div class="lang-switcher">
+            <button id="lang-btn" class="icon-btn" title="${t("topbar.langTitle")}" aria-haspopup="true" aria-expanded="false">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="2" y1="12" x2="22" y2="12"/>
+                <path d="M12 2a15 15 0 0 1 4 10 15 15 0 0 1-4 10 15 15 0 0 1-4-10 15 15 0 0 1 4-10z"/>
+              </svg>
+              <span id="lang-btn-label">${curLocale.toUpperCase()}</span>
+            </button>
+            <div id="lang-menu" class="lang-menu hidden" role="menu">
+              ${LOCALES.map((l) => `
+                <button type="button" class="lang-menu-item${l.code === curLocale ? " active" : ""}" data-lang="${l.code}" role="menuitemradio" aria-checked="${l.code === curLocale}">${l.label}</button>
+              `).join("")}
+            </div>
+          </div>
+          <button id="logout-btn" class="icon-btn">${t("topbar.logout")}</button>
         </div>
       </header>
 
       <div class="main-area">
         <aside class="sidebar" id="sidebar">
           <div class="sidebar-header">
-            <span>Files</span>
+            <span>${t("sidebar.files")}</span>
             <div class="sidebar-actions">
-              <button id="new-file-btn" title="New file (Ctrl+N)" class="sidebar-icon-btn" aria-label="New file">
+              <button id="new-file-btn" title="${t("sidebar.newFileTitle")}" class="sidebar-icon-btn" aria-label="${t("sidebar.newFileAria")}">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
                   <line x1="12" y1="12" x2="12" y2="18"/><line x1="9" y1="15" x2="15" y2="15"/>
                 </svg>
               </button>
-              <button id="new-folder-btn" title="New folder (Ctrl+Shift+N)" class="sidebar-icon-btn" aria-label="New folder">
+              <button id="new-folder-btn" title="${t("sidebar.newFolderTitle")}" class="sidebar-icon-btn" aria-label="${t("sidebar.newFolderAria")}">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
                   <line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/>
@@ -167,24 +186,24 @@ function showApp(): void {
 
         <aside class="right-sidebar" id="right-sidebar">
           <div class="right-sidebar-tabs">
-            <button class="rsb-tab active" data-tab="outline" title="Outline">
+            <button class="rsb-tab active" data-tab="outline" title="${t("panel.outline")}">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="18" y2="18"/>
               </svg>
             </button>
-            <button class="rsb-tab" data-tab="backlinks" title="Backlinks">
+            <button class="rsb-tab" data-tab="backlinks" title="${t("panel.backlinks")}">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
                 <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
               </svg>
             </button>
-            <button class="rsb-tab" data-tab="tags" title="Tags">
+            <button class="rsb-tab" data-tab="tags" title="${t("panel.tags")}">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
                 <line x1="7" y1="7" x2="7.01" y2="7"/>
               </svg>
             </button>
-            <button id="rsb-toggle" class="rsb-toggle" title="Toggle right sidebar">
+            <button id="rsb-toggle" class="rsb-toggle" title="${t("topbar.toggleRsbTitle")}">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/>
               </svg>
@@ -299,7 +318,7 @@ function showApp(): void {
       if (currentPath === path) {
         currentPath = null;
         activePathRef.current = "";
-        titleEl.textContent = "—";
+        titleEl.textContent = t("topbar.untitled");
         if (editorView) setEditorContent(editorView, "");
         previewEl.innerHTML = "";
         setStatus("idle");
@@ -348,52 +367,52 @@ function showApp(): void {
     return [
       {
         id: "new-file",
-        label: "Create new file",
-        description: "Ctrl+N",
+        label: t("cmd.newFile.label"),
+        description: t("cmd.newFile.desc"),
         action: () => void newFilePrompt(""),
       },
       {
         id: "new-base",
-        label: "Create new base file",
-        description: "Create a .base query/table file",
+        label: t("cmd.newBase.label"),
+        description: t("cmd.newBase.desc"),
         action: () => void newBaseFilePrompt(""),
       },
       {
         id: "new-folder",
-        label: "Create new folder",
-        description: "Ctrl+Shift+N",
+        label: t("cmd.newFolder.label"),
+        description: t("cmd.newFolder.desc"),
         action: () => void newFolderPrompt(""),
       },
       {
         id: "daily-note",
-        label: "Open today's daily note",
+        label: t("cmd.daily.label"),
         description: `Daily/${todayIso()}.md`,
         action: () => void openDailyNote(),
       },
       {
         id: "rename-file",
-        label: "Rename current file",
-        description: currentPath ? `F2 · ${currentPath}` : "No file open",
+        label: t("cmd.rename.label"),
+        description: currentPath ? t("cmd.rename.descKey", { path: currentPath }) : t("cmd.noFileOpen"),
         action: () => {
-          if (!currentPath) { alert("No file is currently open."); return; }
+          if (!currentPath) { alert(t("cmd.noFileAlert")); return; }
           void renameFilePrompt(currentPath);
         },
       },
       {
         id: "duplicate-file",
-        label: "Duplicate current file",
-        description: currentPath ? currentPath : "No file open",
+        label: t("cmd.duplicate.label"),
+        description: currentPath ? currentPath : t("cmd.noFileOpen"),
         action: () => {
-          if (!currentPath) { alert("No file is currently open."); return; }
+          if (!currentPath) { alert(t("cmd.noFileAlert")); return; }
           void duplicateFile(currentPath);
         },
       },
       {
         id: "move-file",
-        label: "Move file to directory",
-        description: currentPath ? `Current: ${currentPath}` : "No file open",
+        label: t("cmd.move.label"),
+        description: currentPath ? t("cmd.move.descCurrent", { path: currentPath }) : t("cmd.noFileOpen"),
         action: () => {
-          if (!currentPath) { alert("No file is currently open."); return; }
+          if (!currentPath) { alert(t("cmd.noFileAlert")); return; }
           openMoveFilePalette(currentPath, (oldPath, newPath) => {
             if (currentPath === oldPath) {
               currentPath = newPath;
@@ -406,38 +425,38 @@ function showApp(): void {
       },
       {
         id: "toggle-view",
-        label: "Toggle editor / preview view",
-        description: "Ctrl+E",
+        label: t("cmd.toggleView.label"),
+        description: t("cmd.toggleView.desc"),
         action: () => cycleViewMode(),
       },
       {
         id: "bold",
-        label: "Bold selection",
-        description: "Ctrl+B",
+        label: t("cmd.bold.label"),
+        description: t("cmd.bold.desc"),
         action: () => { if (editorView) boldSelection(editorView); },
       },
       {
         id: "italic",
-        label: "Italic selection",
-        description: "Ctrl+I",
+        label: t("cmd.italic.label"),
+        description: t("cmd.italic.desc"),
         action: () => { if (editorView) italicSelection(editorView); },
       },
       {
         id: "wikilink",
-        label: "Wrap selection as [[wikilink]]",
-        description: "Ctrl+L",
+        label: t("cmd.wikilink.label"),
+        description: t("cmd.wikilink.desc"),
         action: () => { if (editorView) wikilinkSelection(editorView); },
       },
       {
         id: "search",
-        label: "Search files",
-        description: "Ctrl+K",
+        label: t("cmd.search.label"),
+        description: t("cmd.search.desc"),
         action: () => openSearch(),
       },
       {
         id: "toggle-right-sidebar",
-        label: rsbVisible ? "Hide right sidebar" : "Show right sidebar",
-        description: "Outline / Backlinks / Tags panel",
+        label: rsbVisible ? t("cmd.rsb.hide") : t("cmd.rsb.show"),
+        description: t("cmd.rsb.desc"),
         action: () => toggleRightSidebar(),
       },
     ];
@@ -480,17 +499,61 @@ function showApp(): void {
   const themeBtn = document.getElementById("theme-btn")!;
   const updateThemeTitle = () => {
     const all = themeManager.getThemes();
-    const idx = all.findIndex((t) => t.name === themeManager.getCurrent());
+    const idx = all.findIndex((th) => th.name === themeManager.getCurrent());
     const next = all[(idx + 1) % all.length]!;
-    themeBtn.title = `Theme: ${themeManager.getThemes().find((t) => t.name === themeManager.getCurrent())?.label ?? ""} → ${next.label}`;
+    const cur = all.find((th) => th.name === themeManager.getCurrent())?.label ?? "";
+    themeBtn.title = t("topbar.themeOf", { current: cur, next: next.label });
   };
   updateThemeTitle();
   themeBtn.addEventListener("click", () => {
     const all = themeManager.getThemes();
-    const idx = all.findIndex((t) => t.name === themeManager.getCurrent());
+    const idx = all.findIndex((th) => th.name === themeManager.getCurrent());
     const next = all[(idx + 1) % all.length]!;
     themeManager.apply(next.name);
     updateThemeTitle();
+  });
+
+  // ── Language switcher ─────────────────────────────────────────────────────
+  const langBtn = document.getElementById("lang-btn")!;
+  const langMenu = document.getElementById("lang-menu")!;
+  const closeLangMenu = () => {
+    langMenu.classList.add("hidden");
+    langBtn.setAttribute("aria-expanded", "false");
+  };
+  langBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const open = langMenu.classList.toggle("hidden");
+    langBtn.setAttribute("aria-expanded", String(!open));
+  });
+  langMenu.querySelectorAll<HTMLButtonElement>("[data-lang]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const code = btn.dataset["lang"] as Locale | undefined;
+      if (!code) return;
+      if (code === getLocale()) { closeLangMenu(); return; }
+      // Flush any pending save before re-rendering, otherwise the debounced
+      // save timer would fire AFTER showApp() replaces the editor view and
+      // overwrite the file with the new (empty) editor's contents.
+      const pathToRestore = currentPath;
+      if (saveTimer) {
+        clearTimeout(saveTimer);
+        saveTimer = null;
+      }
+      if (pathToRestore && isDirty && editorView) {
+        await doSave();
+      }
+      // Reset module-level state so openFile() inside the re-rendered
+      // showApp() doesn't short-circuit on its "same path" guard.
+      currentPath = null;
+      isDirty = false;
+      activePathRef.current = "";
+      setLocale(code);
+      showApp(pathToRestore ?? undefined);
+    });
+  });
+  document.addEventListener("click", (e) => {
+    if (!langMenu.contains(e.target as Node) && !langBtn.contains(e.target as Node)) {
+      closeLangMenu();
+    }
   });
 
   // ── Logout ────────────────────────────────────────────────────────────────
@@ -503,10 +566,10 @@ function showApp(): void {
   function setStatus(status: SaveStatus, msg?: string): void {
     const labels: Record<SaveStatus, string> = {
       idle: "",
-      editing: "editing…",
-      saving: "saving…",
-      saved: "saved ✓",
-      error: msg ?? "error",
+      editing: t("save.editing"),
+      saving: t("save.saving"),
+      saved: t("save.saved"),
+      error: msg ?? t("save.error"),
     };
     saveStatusEl.textContent = labels[status];
     saveStatusEl.className = `save-status status-${status}`;
@@ -515,7 +578,7 @@ function showApp(): void {
   function updateWordCount(text: string): void {
     const words = countWords(text);
     const chars = text.length;
-    wordCountEl.textContent = currentPath ? `${words} words · ${chars} chars` : "";
+    wordCountEl.textContent = currentPath ? t("stats.words", { words, chars }) : "";
   }
 
   function displayName(path: string): string {
@@ -570,7 +633,7 @@ function showApp(): void {
         updateWordCount(content);
       }
     } catch {
-      setStatus("error", "Failed to load file");
+      setStatus("error", t("save.loadFailed"));
       return;
     }
     editorPaneEl.classList.remove("hidden");
@@ -623,7 +686,7 @@ function showApp(): void {
       setStatus("saved");
       setTimeout(() => setStatus("idle"), 2000);
     } catch (err) {
-      setStatus("error", err instanceof Error ? err.message : "Save failed");
+      setStatus("error", err instanceof Error ? err.message : t("save.saveFailed"));
     }
   }
 
@@ -664,7 +727,7 @@ function showApp(): void {
           isDirty = false;
         }
       } catch {
-        setStatus("error", "Failed to load file");
+        setStatus("error", t("save.loadFailed"));
         return;
       }
 
@@ -693,7 +756,7 @@ function showApp(): void {
         outlinePanel.update(content);
       }
     } catch {
-      setStatus("error", "Failed to load file");
+      setStatus("error", t("save.loadFailed"));
     }
 
     // Update backlinks for newly opened file
@@ -703,7 +766,7 @@ function showApp(): void {
   // ── File operations ─────────────────────────────────────────────────────
   async function newFilePrompt(dirPath: string): Promise<void> {
     const suggested = dirPath ? `${dirPath}/untitled.md` : "untitled.md";
-    const input = prompt("New file path (under vault root):", suggested);
+    const input = prompt(t("prompt.newFile"), suggested);
     if (input === null) return;
     const trimmed = input.trim();
     if (!trimmed) return;
@@ -713,13 +776,13 @@ function showApp(): void {
       renderTree(treeEl, openFile, activePathRef);
       await openFile(created);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Create failed");
+      alert(err instanceof Error ? err.message : t("alert.createFailed"));
     }
   }
 
   async function newBaseFilePrompt(dirPath: string): Promise<void> {
     const suggested = dirPath ? `${dirPath}/untitled.base` : "untitled.base";
-    const rawInput = prompt("New base file path (under vault root):", suggested);
+    const rawInput = prompt(t("prompt.newBase"), suggested);
     if (rawInput === null) return;
     const trimmed = rawInput.trim();
     if (!trimmed) return;
@@ -740,13 +803,13 @@ function showApp(): void {
       renderTree(treeEl, openFile, activePathRef);
       await openFile(created);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Create failed");
+      alert(err instanceof Error ? err.message : t("alert.createFailed"));
     }
   }
 
   async function newFolderPrompt(parent: string): Promise<void> {
     const suggested = parent ? `${parent}/new-folder` : "new-folder";
-    const input = prompt("New folder path:", suggested);
+    const input = prompt(t("prompt.newFolder"), suggested);
     if (input === null) return;
     const trimmed = input.trim();
     if (!trimmed) return;
@@ -754,12 +817,12 @@ function showApp(): void {
       await createFolder(trimmed);
       renderTree(treeEl, openFile, activePathRef);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Create folder failed");
+      alert(err instanceof Error ? err.message : t("alert.createFolderFailed"));
     }
   }
 
   async function renameFilePrompt(oldPath: string): Promise<void> {
-    const input = prompt("Rename to (new path):", oldPath);
+    const input = prompt(t("prompt.rename"), oldPath);
     if (input === null) return;
     const trimmed = input.trim();
     if (!trimmed || trimmed === oldPath) return;
@@ -785,7 +848,7 @@ function showApp(): void {
       renderTree(treeEl, openFile, activePathRef);
       if (wasActive) await openFile(resolved);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Rename failed");
+      alert(err instanceof Error ? err.message : t("alert.renameFailed"));
     }
   }
 
@@ -794,7 +857,7 @@ function showApp(): void {
       const newPath = await copyFile(srcPath);
       renameFileFollowup(newPath);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Duplicate failed");
+      alert(err instanceof Error ? err.message : t("alert.duplicateFailed"));
     }
   }
 
@@ -815,9 +878,14 @@ function showApp(): void {
         renderTree(treeEl, openFile, activePathRef);
         await openFile(created);
       } catch (err) {
-        alert(err instanceof Error ? err.message : "Create daily note failed");
+        alert(err instanceof Error ? err.message : t("alert.dailyFailed"));
       }
     }
+  }
+
+  // ── Restore file after locale switch re-render ────────────────────────
+  if (restorePath) {
+    void openFile(restorePath);
   }
 }
 

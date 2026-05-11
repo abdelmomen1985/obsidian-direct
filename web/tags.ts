@@ -1,4 +1,5 @@
 import { getTags, TagEntry } from "./api.ts";
+import { t } from "./i18n.ts";
 
 export interface TagsPaneHandle {
   el: HTMLElement;
@@ -11,25 +12,25 @@ export function createTagsPane(
   const el = document.createElement("div");
   el.className = "tags-pane";
   el.innerHTML = `
-    <div class="tags-header">Tags</div>
+    <div class="tags-header">${t("panel.tags")}</div>
     <div class="tags-list"></div>
   `;
 
   const listEl = el.querySelector<HTMLElement>(".tags-list")!;
 
   async function refresh(): Promise<void> {
-    listEl.innerHTML = '<div class="tags-loading">Loading…</div>';
+    listEl.innerHTML = `<div class="tags-loading">${t("panel.tagsLoading")}</div>`;
     try {
       const entries = await getTags();
       render(entries);
     } catch {
-      listEl.innerHTML = '<div class="tags-empty">Failed to load</div>';
+      listEl.innerHTML = `<div class="tags-empty">${t("panel.tagsFailed")}</div>`;
     }
   }
 
   function render(entries: TagEntry[]): void {
     if (entries.length === 0) {
-      listEl.innerHTML = '<div class="tags-empty">No tags found</div>';
+      listEl.innerHTML = `<div class="tags-empty">${t("panel.tagsEmpty")}</div>`;
       return;
     }
 
